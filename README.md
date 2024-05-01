@@ -3,7 +3,8 @@
 is a library that uses the Discogs API to authenticate and uses their API to get data.
 As of now, the library is only supporting the auth flow and to get the identity of the user.
 
-#how to get started with the library
+# how to get started with the library
+get your consumer key and secret from discogs [here](https://www.discogs.com/settings/developers)
 npm install @crate.ai/discogs-sdk
 
 # How to use the library
