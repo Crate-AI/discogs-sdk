@@ -1,18 +1,16 @@
 # Discogs SDK
 
-is a library that uses the Discogs API to authenticate and uses their API to get data.
-As of now, the library is only supporting the auth flow and to get the identity of the user.
+The Discogs SDK is a library that uses the Discogs API to authenticate and access their data. Currently, the library only supports the authentication flow and retrieving the user's identity.
 
-# how to get started with the library
-get your consumer key and secret from discogs [here](https://www.discogs.com/settings/developers)
-npm install @crate.ai/discogs-sdk
+# Getting Started
+1. Obtain your consumer key and secret from Discogs [here](https://www.discogs.com/settings/developers).
+2. Install the library using npm: `npm install @crate.ai/discogs-sdk`.
 
-# How to use the library
-
-1. Import the library in your project
-2. Create a new instance of the library with your Discogs consumer key and secret
-3. Call the `authenticateAndGetIdentity` method on the instance
-4. The method will return a promise that resolves with the user's identity
+# Usage
+1. Import the library into your project.
+2. Create a new instance of the library with your Discogs consumer key and secret.
+3. Call the `authenticateAndGetIdentity` method on the instance.
+4. The method will return a promise that resolves with the user's identity.
 
 Here's an example of how to use the library:
 
