@@ -8,8 +8,5 @@
   },
   "keywords": [],
   "author": "",
-  "license": "ISC",
-  "dependencies": {
-    "@crate.ai/discogs-sdk": "^1.0.0"
-  }
+  "license": "ISC"
 }
