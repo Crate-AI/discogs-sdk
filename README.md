@@ -1,4 +1,4 @@
-#Discogs SDK
+# Discogs SDK
 
 is a library that uses the Discogs API to authenticate and uses their API to get data.
 As of now, the library is only supporting the auth flow and to get the identity of the user.
