@@ -88,7 +88,6 @@ export abstract class Base {
      */
     protected async request<T>(endpoint: string, options?: RequestInit, body?: any): Promise<T> {
         const url = `${this.baseUrl}${endpoint.startsWith('/') ? '' : '/'}${endpoint}`;
-        console.log('url',url);
         const headers = new Headers({
             'Authorization': this.generateOAuthHeader(),
             'User-Agent': this.userAgent

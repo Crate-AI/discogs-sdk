@@ -1,11 +1,12 @@
 {
   "compilerOptions": {
-    "module": "commonjs",
+    "module": "ESNext",
+    "target":"ESNext",
+    "moduleResolution":"node",
     "declaration": true,
     "removeComments": true,
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
-    "target": "ES2017",
     "sourceMap": false,
     "outDir": "./dist",
     "baseUrl": "./",

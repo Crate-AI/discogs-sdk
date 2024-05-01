@@ -110,8 +110,6 @@ export class Auth extends Base {
             headers: headers
         };
     
-        console.log("Making Identity Request with URL:", `${this.baseUrlGetter}${endpoint.startsWith('/') ? '' : '/'}${endpoint}`);
-        console.log("Headers:", headers);
     
         // Use the inherited `request` method from Base class
         return this.request<UserIdentityResponse>(endpoint, options);
@@ -125,7 +123,6 @@ export class Auth extends Base {
         try {
             const requestToken = await this.getRequestToken();
             console.log(`Please visit this URL to authorize the application: ${requestToken.verificationURL}`);
-    
             const rl = createInterface({
                 input: process.stdin,
                 output: process.stdout
