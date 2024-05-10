@@ -1,6 +1,7 @@
 import { Base } from "../base";
 import { RequestTokenResponse, AccessTokenResponse, AccessTokenParams, UserIdentityResponse, UserIdentityParams } from "./types";
 import { createInterface } from 'readline';
+import { StorageService } from '../utils';
 
 export class Auth extends Base {
 
@@ -141,10 +142,17 @@ export class Auth extends Base {
                 oauthVerifier: oauthVerifier
             });
     
+            // Store access token and secret
+            StorageService.setItem('oauthAccessToken', accessToken.oauthAccessToken);
+            StorageService.setItem('oauthAccessTokenSecret', accessToken.oauthAccessTokenSecret);
+    
             const userIdentity = await this.getUserIdentity({
                 oauthToken: accessToken.oauthAccessToken,
                 oauthTokenSecret: accessToken.oauthAccessTokenSecret
             });
+    
+            // Optionally store user identity as well
+            StorageService.setItem('userIdentity', userIdentity);
     
             return userIdentity;
         } catch (error) {
@@ -152,6 +160,7 @@ export class Auth extends Base {
             throw error;
         }
     }
+    
     
 }
 

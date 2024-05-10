@@ -9,3 +9,15 @@ export function applyMixins(derivedCtor: any, baseCtors: any[]) {
       });
     });
   }
+
+export class StorageService {
+  private static storage: any = {};
+
+  static setItem(key: string, value: any) {
+      StorageService.storage[key] = value;
+  }
+
+  static getItem(key: string) {
+      return StorageService.storage[key];
+  }
+}

@@ -1,11 +1,15 @@
-import  DiscogsSDK  from "@crate.ai/discogs-sdk";
+import  discogsSDK  from '@crate.ai/discogs-sdk';
 
-const discogs = new DiscogsSDK({
-  DiscogsConsumerKey: "consumerKey",
-  DiscogsConsumerSecret: "consumerSecret",
+const discogs = new discogsSDK({
+  DiscogsConsumerKey: "VzgMPIFOlJDZhpWoZMUX",
+  DiscogsConsumerSecret: "kEPnGjnAGawTRqgnTLMkdCujUIlAHNFm",
 });
 
 discogs.authenticateAndGetIdentity().then((identity) => {
   console.log(identity);
+});
+
+discogs.getCollection('baston2rue').then((collection) => {
+  console.log(collection);
 });
 

@@ -31,6 +31,12 @@
   "files": [
     "dist"
   ],
+  "microbundle": {
+    "globals": {
+      "readline": "readline"
+    },
+    "external": ["readline"]
+  },
   "devDependencies": {
     "microbundle": "^0.15.1"
   },
