@@ -66,3 +66,11 @@ export declare type Note = {
     field_id: number;
     value: string;
 };
+
+export declare type CollectionParams = {
+    username?: string;
+    folderId?: number | 0;
+    page?: number;
+    perPage?: number;
+};
+

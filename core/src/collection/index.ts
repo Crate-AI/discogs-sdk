@@ -1,6 +1,8 @@
 import { Base } from "../base";
 import { StorageService } from "../utils";
-import type { CollectionResponse } from "./types";
+import type { CollectionResponse, CollectionParams } from "./types";
+import type { UserIdentityResponse } from "../auth/types";
+
 
 /**
  * Fetches collection items for a specific user from Discogs.
@@ -12,39 +14,45 @@ import type { CollectionResponse } from "./types";
  */
 
 export class Collection extends Base {
-    /**
-     * Method to generate a timestamp for OAuth1.
-     * @returns {string} - The generated timestamp.
-     */
-    private generateTimestamp2(): string {
-        return `${Date.now()}`;
-    }
 
-    async getCollection(username: string, folderId: number = 0, page: number = 1, perPage: number = 50): Promise<CollectionResponse> {
-        const oauthToken = StorageService.getItem('oauthAccessToken');
-        const oauthTokenSecret = StorageService.getItem('oauthAccessTokenSecret');
+    async getCollection(params: CollectionParams): Promise<CollectionResponse> {
+        const oauthToken:string = StorageService.getItem('oauthAccessToken');
+        const oauthTokenSecret:string = StorageService.getItem('oauthAccessTokenSecret');
+        const userIdentity: UserIdentityResponse = StorageService.getItem('userIdentity');
+        console.log('userIdentity', userIdentity);
 
-        const endpoint = `users/${username}/collection/folders/${folderId}/releases`;
+        const {
+            folderId = 0, // Default to 0 if folderId is undefined
+            page = 1, // Default to 1 if page is undefined
+            perPage = 50, // Default to 50 if perPage is undefined
+            username = userIdentity.username // Default to the username if username is undefined
+        } = params;
+
+        if(!userIdentity || !userIdentity.username) {
+            throw new Error("User identity is not available. Make sure the user is authenticated.");
+        }
+        const effectiveUsername = username ?? userIdentity.username;
+
         const queryParams = new URLSearchParams({
             'page': page.toString(),
             'per_page': perPage.toString()
         }).toString();
-
-        const headers = {
-            'Authorization': `OAuth oauth_consumer_key="${this.consumerKey}",` +
-                             `oauth_token="${oauthToken}",` +
-                             `oauth_signature_method="PLAINTEXT",` +
-                             `oauth_timestamp="${this.generateTimestamp2()}",` +
-                             `oauth_nonce="${this.nonceGetter}",` +
-                             `oauth_signature="${this.consumerSecret}&${oauthTokenSecret}"`,
-            'User-Agent': this.userAgentGetter
-        };
-
+    
+        const authorizationHeader = this.generateOAuthHeader(oauthToken, oauthTokenSecret);
+    
         const options = {
             method: 'GET',
-            headers: headers
+            headers: {
+                'Authorization': authorizationHeader,
+                'User-Agent': this.userAgentGetter
+            }
         };
 
-        return this.request<any>(`${endpoint}?${queryParams}`, options);
+        const url = `users/${effectiveUsername}/collection/folders/${folderId}/releases?${queryParams}`;
+        console.log("Making API request to URL:", url);  // Add this line to log the URL
+        
+        return this.request<CollectionResponse>(url, options);
+       // return this.request<CollectionResponse>(`users/${params.username ?? username}/collection/folders/${params.folderId}/releases?${queryParams}`, options);
     }
 }
+    

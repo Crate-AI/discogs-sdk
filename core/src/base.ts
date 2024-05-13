@@ -1,4 +1,5 @@
 import fetch from 'isomorphic-unfetch';
+import { StorageService } from './utils';
 
 /**
  * Configuration type for the Base class.
@@ -67,15 +68,31 @@ export abstract class Base {
         return this.generateNonce();
     }
 
+    protected generateTimestamp(): string {
+        return Date.now().toString();
+    }
+    
     /**
      * Method to generate the OAuth header.
-     *
+     * @param {string} [oauthToken] - Optional OAuth token for authorized requests.
+     * @param {string} [oauthTokenSecret] - Optional OAuth token secret for signature.
      * @returns {string} - The generated OAuth header.
      */
-    protected generateOAuthHeader(): string {
-        const timestamp = Date.now().toString();
-        const nonce = this.generateNonce();
-        return `OAuth oauth_consumer_key="${this.DiscogsConsumerKey}",oauth_signature_method="PLAINTEXT",oauth_timestamp="${timestamp}",oauth_nonce="${nonce}",oauth_version="1.0",oauth_signature="${this.DiscogsConsumerSecret}&"`;
+    protected generateOAuthHeader(oauthToken?: string, oauthTokenSecret?: string): string {
+            const timestamp = this.generateTimestamp();
+            const nonce = this.nonceGetter;
+            let signature = `${this.DiscogsConsumerSecret}&`;
+            if (oauthTokenSecret) {
+                signature += oauthTokenSecret;
+            }
+    
+            let header = `OAuth oauth_consumer_key="${this.DiscogsConsumerKey}",oauth_signature_method="PLAINTEXT",oauth_timestamp="${timestamp}",oauth_nonce="${nonce}",oauth_version="1.0",oauth_signature="${signature}"`;
+            
+            if (oauthToken) {
+                header += `,oauth_token="${oauthToken}"`;
+            }
+    
+            return header;
     }
 
     /**
@@ -109,6 +126,10 @@ export abstract class Base {
 
         const response = await fetch(url, config);
         if (!response.ok) {
+            if(response.status === 401){
+                console.log('Token invalid or Revoked. Refreshing token...');
+                throw new Error('Token invalid or Revoked. Refreshing token...');
+            }
             const responseBody = await response.text();
         throw new Error(`HTTP error ${response.status}: ${responseBody}`);
         }

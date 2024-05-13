@@ -4,15 +4,34 @@ import { createInterface } from 'readline';
 import { StorageService } from '../utils';
 
 export class Auth extends Base {
-
-    /**
-     * Method to generate a timestamp for OAuth1.
-     * @returns {string} - The generated timestamp.
-     */
-    private generateTimestamp(): string {
-        return `${Date.now()}`;
+    constructor(config) {
+        super(config);
     }
 
+    async authenticate(): Promise<void> {
+        const requestTokenResponse = await this.getRequestToken();
+        console.log(`Please visit this URL to authorize the application: ${requestTokenResponse.verificationURL}`);
+
+        const rl = createInterface({
+            input: process.stdin,
+            output: process.stdout
+        });
+
+        const oauthVerifier = await new Promise<string>((resolve) => {
+            rl.question('Please enter the OAuth verifier: ', (verifier) => {
+                rl.close();
+                resolve(verifier);
+            });
+        });
+
+        const accessTokenResponse = await this.getAccessToken({
+            oauthToken: requestTokenResponse.oauthRequestToken,
+            tokenSecret: requestTokenResponse.oauthRequestTokenSecret,
+            oauthVerifier: oauthVerifier
+        });
+        StorageService.setItem('oauthAccessToken', accessTokenResponse.oauthAccessToken);
+        StorageService.setItem('oauthAccessTokenSecret', accessTokenResponse.oauthAccessTokenSecret);
+    }
     /**
      * Method to create a verification URL for OAuth1.
      * @param {string} token - The OAuth request token.
@@ -62,15 +81,7 @@ export class Auth extends Base {
             'oauth_token': params.oauthToken,
             'oauth_verifier': params.oauthVerifier
         }).toString();
-    
-        const authorizationHeader = `OAuth oauth_consumer_key="${this.consumerKey}",` +
-                                    `oauth_signature_method="PLAINTEXT",` +
-                                    `oauth_timestamp="${timestamp}",` +
-                                    `oauth_nonce="${nonce}",` +
-                                    `oauth_version="1.0",` +
-                                    `oauth_token="${params.oauthToken}",` +
-                                    `oauth_verifier="${params.oauthVerifier}",` +
-                                    `oauth_signature="${this.consumerSecret}&${params.tokenSecret}"`;
+        const authorizationHeader = this.generateOAuthHeader(params.oauthToken, params.tokenSecret);
     
         const options = {
             method: 'POST',
@@ -94,26 +105,23 @@ export class Auth extends Base {
      * @returns {Promise<UserIdentity>} - A promise that resolves with the user identity object.
      */
     async getUserIdentity(params: UserIdentityParams): Promise<UserIdentityResponse> {
+        const oauthToken = params.oauthToken || StorageService.getItem('oauthAccessToken');
+        const oauthTokenSecret = params.oauthTokenSecret || StorageService.getItem('oauthAccessTokenSecret');
         const endpoint = 'oauth/identity';  // Remove the leading slash to ensure no double slash with base URL
+        const authorizationHeader = this.generateOAuthHeader(oauthToken, oauthTokenSecret);
+
         const headers = {
             'Content-Type': 'application/x-www-form-urlencoded',
-            'Authorization': `OAuth oauth_consumer_key="${this.consumerKey}",` +
-                             `oauth_token="${params.oauthToken}",` +
-                             `oauth_signature_method="PLAINTEXT",` +
-                             `oauth_timestamp="${Date.now().toString()}",` +
-                             `oauth_nonce="${this.nonceGetter}",` +
-                             `oauth_signature="${this.consumerSecret}&${params.oauthTokenSecret}"`,
+            'Authorization': authorizationHeader,
             'User-Agent': this.userAgentGetter
         };
-    
         const options = {
             method: 'GET',
             headers: headers
         };
-    
-    
-        // Use the inherited `request` method from Base class
-        return this.request<UserIdentityResponse>(endpoint, options);
+        const response = await this.request<UserIdentityResponse>(endpoint, options);
+        StorageService.setItem('userIdentity', response);
+        return response;
     }
 
     /**
@@ -146,7 +154,7 @@ export class Auth extends Base {
             StorageService.setItem('oauthAccessToken', accessToken.oauthAccessToken);
             StorageService.setItem('oauthAccessTokenSecret', accessToken.oauthAccessTokenSecret);
     
-            const userIdentity = await this.getUserIdentity({
+            const userIdentity: UserIdentityResponse = await this.getUserIdentity({
                 oauthToken: accessToken.oauthAccessToken,
                 oauthTokenSecret: accessToken.oauthAccessTokenSecret
             });

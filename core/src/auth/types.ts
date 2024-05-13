@@ -15,8 +15,8 @@ export declare type AccessTokenResponse = {
     oauthAccessTokenSecret: string;
 };
 export declare type UserIdentityParams = {
-    oauthToken: string;
-    oauthTokenSecret: string;
+    oauthToken?: string;
+    oauthTokenSecret?: string;
 };
 
 export declare type UserIdentityResponse = {
