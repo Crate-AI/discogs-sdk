@@ -1,19 +1,15 @@
 {
   "compilerOptions": {
+    "target": "ES2017",
     "module": "ESNext",
-    "target":"ESNext",
-    "moduleResolution":"node",
-    "declaration": true,
-    "removeComments": true,
+    "moduleResolution": "Node",
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
-    "sourceMap": false,
-    "outDir": "./dist",
-    "baseUrl": "./",
-    "incremental": true,
-    "typeRoots": ["node_modules/@types"],
-    "types": []
+    "strict": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true
   },
-  "include": ["src/**/*"],
-  "exclude": ["node_modules", "test", "lib", "**/*spec.ts"]
+  "include": ["src"]
 }
+
+

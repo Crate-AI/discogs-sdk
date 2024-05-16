@@ -1,19 +1,32 @@
-import DiscogsSDK from '@crate.ai/discogs-sdk';
+import { DiscogsSDK, StorageService } from '@crate.ai/discogs-sdk';
+import path from 'path';
+
+// Configure storage path to a directory where you have write permissions
+StorageService.storagePath = path.join(process.cwd(), 'storage.json');
+console.log('storagePath', StorageService.storagePath);
 
 const discogs = new DiscogsSDK({
-  DiscogsConsumerKey: "Your Consumer Key",
-  DiscogsConsumerSecret: "Your Consumer Secret",
+  DiscogsConsumerKey: "your_consumer_key",
+  DiscogsConsumerSecret: "your_consumer_secret",
 });
 
-discogs.authenticate().then(() => {
-  console.log('Authenticated');
-  discogs.getUserIdentity({}).then((identity) => {
-    console.log(identity);
-    discogs.getCollection({}).then((collection) => {
-      console.log(collection.pagination.items);
-    });
-}).catch(error => console.error('Error in fetching user identity:', error));
-}).catch(error => console.error('Error in authentication:', error));
+// console.log('discogs', discogs);
+
+// discogs.auth.authenticate().then((res) => {
+//     console.log('Authenticated');
+//     console.log('response', res);
+// });
+
+
+// discogs.auth.authenticate().then(() => {
+//   console.log('Authenticated');
+//   discogs.auth.getUserIdentity({}).then((identity) => {
+//     console.log(identity);
+//     discogs.collection.getCollection({}).then((collection) => {
+//       console.log(collection.pagination.items);
+//     });
+// }).catch(error => console.error('Error in fetching user identity:', error));
+// }).catch(error => console.error('Error in authentication:', error));
 
 // discogs.authenticateAndGetIdentity().then((identity) => {
 //   console.log(identity);
@@ -33,7 +46,7 @@ discogs.authenticate().then(() => {
 // }).catch(error => console.error('Error in fetching user identity:', error));
 
 
-// discogs.getCollection({username:'Baston2rue'}).then((collection) => {
+// discogs.collection.getCollection({folderId: 1}).then((collection) => {
 //     console.log(collection.pagination.items);
 // }).catch(error => console.error('Error in fetching collection:', error));
 

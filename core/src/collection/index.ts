@@ -1,4 +1,4 @@
-import { Base } from "../base";
+import { Base, Config } from "../base";
 import { StorageService } from "../utils";
 import type { CollectionResponse, CollectionParams } from "./types";
 import type { UserIdentityResponse } from "../auth/types";
@@ -14,6 +14,10 @@ import type { UserIdentityResponse } from "../auth/types";
  */
 
 export class Collection extends Base {
+
+    constructor(config: Config) {
+        super(config);
+    }
 
     async getCollection(params: CollectionParams): Promise<CollectionResponse> {
         const oauthToken:string = StorageService.getItem('oauthAccessToken');

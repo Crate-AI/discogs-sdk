@@ -1,11 +1,22 @@
-import { Base } from "./base";
+import { Base , Config } from "./base";
 import { Auth } from "./auth";
 import { Collection } from "./collection";
-import { applyMixins } from "./utils";
+export * from './auth';
+export * from './base';
+export * from './collection';
+export * from './utils';  // Add this line
 
-class discogsSDK extends Base {}
-interface discogsSDK extends Auth, Collection {}
 
-applyMixins(discogsSDK, [Auth, Collection]);
+class DiscogsSDK extends Base {
+    auth: Auth;
+    collection: Collection;
 
-export default discogsSDK;
+    constructor(config: Config) {
+        super(config);
+        this.auth = new Auth(config);
+        this.collection = new Collection(config);
+    }
+}
+export { DiscogsSDK };
+// export default DiscogsSDK;
+
