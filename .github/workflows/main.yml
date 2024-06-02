@@ -25,6 +25,9 @@ jobs:
           node-version: 16.x
           cache: 'pnpm'
 
+      - name: List all files in repository
+        run: ls -R
+
       - name: List core directory contents
         run: ls -al core
 
