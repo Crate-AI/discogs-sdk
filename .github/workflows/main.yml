@@ -25,6 +25,9 @@ jobs:
           node-version: 16.x
           cache: 'pnpm'
 
+      - name: List core directory contents
+        run: ls -al core
+
       - name: Install dependencies --frozen-lockfile
         run: pnpm install --frozen-lockfile
         working-directory: core
