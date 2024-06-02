@@ -26,9 +26,8 @@ jobs:
           cache: 'pnpm'
 
       - name: Install dependencies --frozen-lockfile
-        run: |
-          cd core
-          pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile
+        working-directory: core
         
       - name: Run CI script
         run: pnpm run ci
