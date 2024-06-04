@@ -23,7 +23,6 @@ export class Collection extends Base {
         const oauthToken:string = StorageService.getItem('oauthAccessToken');
         const oauthTokenSecret:string = StorageService.getItem('oauthAccessTokenSecret');
         const userIdentity: UserIdentityResponse = StorageService.getItem('userIdentity');
-        console.log('userIdentity', userIdentity);
 
         const {
             folderId = 0, // Default to 0 if folderId is undefined
@@ -53,10 +52,8 @@ export class Collection extends Base {
         };
 
         const url = `users/${effectiveUsername}/collection/folders/${folderId}/releases?${queryParams}`;
-        console.log("Making API request to URL:", url);  // Add this line to log the URL
         
         return this.request<CollectionResponse>(url, options);
-       // return this.request<CollectionResponse>(`users/${params.username ?? username}/collection/folders/${params.folderId}/releases?${queryParams}`, options);
     }
 }
     
