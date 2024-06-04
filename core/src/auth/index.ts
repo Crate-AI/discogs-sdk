@@ -1,7 +1,15 @@
 import { Base, Config } from "../base";
 import { RequestTokenResponse, AccessTokenResponse, AccessTokenParams, UserIdentityResponse, UserIdentityParams } from "./types";
-import { createInterface } from 'readline';
+import { setTimeout as sleep } from 'node:timers/promises';
 import { StorageService } from '../utils';
+import {
+  intro,
+  outro,
+  text,
+  note,
+  isCancel,
+  cancel
+} from '@clack/prompts';
 
 export class Auth extends Base {
 
@@ -10,42 +18,34 @@ export class Auth extends Base {
     }
 
     async authenticate(): Promise<void> {
+        intro('Discogs Authentication');
         const requestTokenResponse = await this.getRequestToken();
-        console.log(`Please visit this URL to authorize the application: ${requestTokenResponse.verificationURL}`);
+        note(`Please visit this URL to authorize the application:\n\n${requestTokenResponse.verificationURL}`, 'Authorization URL');
 
-        const rl = createInterface({
-            input: process.stdin,
-            output: process.stdout
+        const oauthVerifier = await text({
+            message: 'Please enter the OAuth verifier:'
         });
 
-        const oauthVerifier = await new Promise<string>((resolve) => {
-            rl.question('Please enter the OAuth verifier: ', (verifier) => {
-                rl.close();
-                resolve(verifier);
-            });
-        });
+        if (isCancel(oauthVerifier)) {
+            cancel('Operation cancelled');
+            return;
+        }
 
         const accessTokenResponse = await this.getAccessToken({
             oauthToken: requestTokenResponse.oauthRequestToken,
             tokenSecret: requestTokenResponse.oauthRequestTokenSecret,
             oauthVerifier: oauthVerifier
         });
+
         StorageService.setItem('oauthAccessToken', accessTokenResponse.oauthAccessToken);
         StorageService.setItem('oauthAccessTokenSecret', accessTokenResponse.oauthAccessTokenSecret);
+        outro('Authentication successful!');
     }
-    /**
-     * Method to create a verification URL for OAuth1.
-     * @param {string} token - The OAuth request token.
-     * @returns {string} - The verification URL.
-     */
+
     private createVerificationURL(token: string): string {
         return `https://www.discogs.com/oauth/authorize?oauth_token=${token}`;
     }
 
-    /**
-     * Method to obtain the request token for OAuth1.
-     * @returns {Promise<RequestTokenResponse>} - A promise that resolves with the request token object.
-     */
     async getRequestToken(): Promise<RequestTokenResponse> {
         const timestamp = this.generateTimestamp();
         const nonce = this.nonceGetter;
@@ -69,11 +69,6 @@ export class Auth extends Base {
         };
     }
 
-    /**
-     * Method to obtain the access token for OAuth1.
-     * @param {AccessTokenParams} params - The parameters for the access token request.
-     * @returns {Promise<AccessTokenResponse>} - A promise that resolves with the access token object.
-     */
     async getAccessToken(params: AccessTokenParams): Promise<AccessTokenResponse> {
         const timestamp = this.generateTimestamp();
         const nonce = this.nonceGetter;
@@ -99,12 +94,6 @@ export class Auth extends Base {
         };
     }
 
-    /**
-     * Method to obtain the user identity for OAuth1.
-     * @param {string} oauthToken - The OAuth access token.
-     * @param {string} oauthTokenSecret - The OAuth access token secret.
-     * @returns {Promise<UserIdentity>} - A promise that resolves with the user identity object.
-     */
     async getUserIdentity(params: UserIdentityParams): Promise<UserIdentityResponse> {
         const oauthToken = params.oauthToken || StorageService.getItem('oauthAccessToken');
         const oauthTokenSecret = params.oauthTokenSecret || StorageService.getItem('oauthAccessTokenSecret');
@@ -125,51 +114,42 @@ export class Auth extends Base {
         return response;
     }
 
-    /**
-     * Method to coordinate the complete OAuth authentication flow.
-     * @returns {Promise<UserIdentityResponse | AccessTokenResponse>} - Depending on whether user identity is fetched.
-     */
     async authenticateAndGetIdentity(): Promise<UserIdentityResponse | AccessTokenResponse> {
         try {
+            intro('Discogs Authentication');
             const requestToken = await this.getRequestToken();
-            console.log(`Please visit this URL to authorize the application: ${requestToken.verificationURL}`);
-            const rl = createInterface({
-                input: process.stdin,
-                output: process.stdout
+            note(`Please visit this URL to authorize the application:\n\n${requestToken.verificationURL}`, 'Authorization URL');
+
+            const oauthVerifier = await text({
+                message: 'Please enter the OAuth verifier:'
             });
-    
-            const oauthVerifier = await new Promise<string>((resolve) => {
-                rl.question('Please enter the OAuth verifier: ', (verifier) => {
-                    rl.close();
-                    resolve(verifier);
-                });
-            });
-    
+
+            if (isCancel(oauthVerifier)) {
+                cancel('Operation cancelled');
+                return;
+            }
+
             const accessToken = await this.getAccessToken({
                 oauthToken: requestToken.oauthRequestToken,
                 tokenSecret: requestToken.oauthRequestTokenSecret,
                 oauthVerifier: oauthVerifier
             });
-    
-            // Store access token and secret
+
             StorageService.setItem('oauthAccessToken', accessToken.oauthAccessToken);
             StorageService.setItem('oauthAccessTokenSecret', accessToken.oauthAccessTokenSecret);
-    
+
             const userIdentity: UserIdentityResponse = await this.getUserIdentity({
                 oauthToken: accessToken.oauthAccessToken,
                 oauthTokenSecret: accessToken.oauthAccessTokenSecret
             });
-    
-            // Optionally store user identity as well
+
             StorageService.setItem('userIdentity', userIdentity);
-    
+
+            outro('Authentication successful!');
             return userIdentity;
         } catch (error) {
             console.error('Authentication flow failed:', error);
             throw error;
         }
     }
-    
-    
 }
-
