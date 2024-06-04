@@ -1,4 +1,6 @@
 /src
 /node_modules
-
+/.changeset
+.github
+pnpm-lock.yaml
 tsconfig.json

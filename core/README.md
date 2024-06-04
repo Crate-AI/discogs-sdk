@@ -12,22 +12,32 @@ The Discogs SDK is a library that uses the Discogs API to authenticate and acces
 # Usage
 1. Import the library into your project.
 2. Create a new instance of the library with your Discogs consumer key and secret.
-3. Call the `authenticateAndGetIdentity` method on the instance.
+3. Call the `authenticate` method on the instance.
 4. The method will return a promise that resolves with the user's identity.
 
 Here's an example of how to use the library:
 
 ```javascript
-import discogsSDK from "@crate.ai/discogs-sdk";
+import { DiscogsSDK, StorageService } from '@crate.ai/discogs-sdk';
 
-const auth = new discogsSDK({
+
+// Configure storage path to a directory where you have write permissions
+StorageService.storagePath = path.join(process.cwd(), 'storage.json');
+
+const discogs = new DiscogsSDK({
  DiscogsConsumerKey: "yourConsumerKey",
  DiscogsConsumerSecret: "yourConsumerSecret"
 });
 
-auth.authenticateAndGetIdentity().then((res) => {
-    console.log('User identity:', res);
-});
+discogs.auth.authenticate().then(() => {
+  console.log('Authenticated');
+  discogs.auth.getUserIdentity({}).then((identity) => {
+    console.log(identity);
+    discogs.collection.getCollection({}).then((collection) => {
+      console.log(collection.pagination.items);
+    });
+}).catch(error => console.error('Error in fetching user identity:', error));
+}).catch(error => console.error('Error in authentication:', error));
 ```
 
 That's it! You're now ready to use the library in your project.
