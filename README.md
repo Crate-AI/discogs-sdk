@@ -19,7 +19,7 @@ Here's an example of how to use the library:
 
 ```javascript
 import { DiscogsSDK, StorageService } from '@crate.ai/discogs-sdk';
-
+import path from 'path';
 
 // Configure storage path to a directory where you have write permissions
 StorageService.storagePath = path.join(process.cwd(), 'storage.json');
