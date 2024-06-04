@@ -1,4 +1,4 @@
-import fetch from 'isomorphic-unfetch';
+// import fetch from 'isomorphic-unfetch';
 import { StorageService } from './utils';
 
 /**
@@ -11,7 +11,7 @@ import { StorageService } from './utils';
  * @property {string} [callbackUrl] - The callback URL for the OAuth flow. Defaults to 'http://localhost:3000/callback'.
  * @property {string} [userAgent] - The User-Agent string for the SDK. Defaults to 'DefaultUserAgent/1.0'.
  */
-type Config = {
+export type Config = {
     DiscogsConsumerKey: string;
     DiscogsConsumerSecret: string;
     baseUrl?: string;

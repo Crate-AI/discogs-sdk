@@ -1,10 +1,11 @@
-import { Base } from "../base";
+import { Base, Config } from "../base";
 import { RequestTokenResponse, AccessTokenResponse, AccessTokenParams, UserIdentityResponse, UserIdentityParams } from "./types";
 import { createInterface } from 'readline';
 import { StorageService } from '../utils';
 
 export class Auth extends Base {
-    constructor(config) {
+
+    constructor(config: Config) {
         super(config);
     }
 
