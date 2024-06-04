@@ -10,6 +10,7 @@ import {
   isCancel,
   cancel
 } from '@clack/prompts';
+import colors from 'picocolors';
 
 export class Auth extends Base {
 
@@ -18,28 +19,35 @@ export class Auth extends Base {
     }
 
     async authenticate(): Promise<void> {
-        intro('Discogs Authentication');
-        const requestTokenResponse = await this.getRequestToken();
-        note(`Please visit this URL to authorize the application:\n\n${requestTokenResponse.verificationURL}`, 'Authorization URL');
+        try {
+            console.log('\n');
+            intro(colors.bgBlue('Discogs Authentication'));
+            const requestTokenResponse = await this.getRequestToken();
+            note(`Please visit this URL to authorize the application:\n\n${requestTokenResponse.verificationURL}`, 'Authorization URL');
 
-        const oauthVerifier = await text({
-            message: 'Please enter the OAuth verifier:'
-        });
+            const oauthVerifier = await text({
+                message: 'Please enter the OAuth verifier:'
+            });
 
-        if (isCancel(oauthVerifier)) {
-            cancel('Operation cancelled');
-            return;
+            if (isCancel(oauthVerifier)) {
+                cancel('Operation cancelled');
+                return;
+            }
+
+            const accessTokenResponse = await this.getAccessToken({
+                oauthToken: requestTokenResponse.oauthRequestToken,
+                tokenSecret: requestTokenResponse.oauthRequestTokenSecret,
+                oauthVerifier: oauthVerifier
+            });
+
+            StorageService.setItem('oauthAccessToken', accessTokenResponse.oauthAccessToken);
+            StorageService.setItem('oauthAccessTokenSecret', accessTokenResponse.oauthAccessTokenSecret);
+            outro('Authentication successful!');
+        } catch (error) {
+            const errorMessage = `Authentication failed due to error: ${error.message || error}`;
+            note(`${errorMessage}\n\nPlease check your input and try again.`, 'Error');
+            cancel('Operation cancelled due to error.');
         }
-
-        const accessTokenResponse = await this.getAccessToken({
-            oauthToken: requestTokenResponse.oauthRequestToken,
-            tokenSecret: requestTokenResponse.oauthRequestTokenSecret,
-            oauthVerifier: oauthVerifier
-        });
-
-        StorageService.setItem('oauthAccessToken', accessTokenResponse.oauthAccessToken);
-        StorageService.setItem('oauthAccessTokenSecret', accessTokenResponse.oauthAccessTokenSecret);
-        outro('Authentication successful!');
     }
 
     private createVerificationURL(token: string): string {
@@ -88,6 +96,9 @@ export class Auth extends Base {
             }
         };
         const response = await this.request<URLSearchParams>('oauth/access_token', options, body);
+        if (!response.get('oauth_token')) {
+            throw new Error('Unable to retrieve access token. Your request token may have expired.');
+        }
         return {
             oauthAccessToken: response.get('oauth_token')!,
             oauthAccessTokenSecret: response.get('oauth_token_secret')!
@@ -148,8 +159,9 @@ export class Auth extends Base {
             outro('Authentication successful!');
             return userIdentity;
         } catch (error) {
-            console.error('Authentication flow failed:', error);
-            throw error;
+            const errorMessage = `Authentication flow failed due to error: ${error.message || error}`;
+            note(`${errorMessage}\n\nPlease check your input and try again.`, 'Error');
+            cancel('Operation cancelled due to error.');
         }
     }
 }
