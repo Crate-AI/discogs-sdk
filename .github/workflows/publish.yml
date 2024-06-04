@@ -24,12 +24,16 @@ jobs:
         uses: actions/setup-node@v3
         with:
           node-version: '18.x'
-          cache: "pnpm"
+          cache: 'pnpm'
           cache-dependency-path: core/pnpm-lock.yaml
 
       - name: Install Project Dependencies
         run: pnpm install --no-frozen-lockfile
         working-directory: core
+
+      - name: Configure npm for authentication
+        run: |
+          echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > ~/.npmrc
 
       - name: Create Release Pull Request or Publish to Registry
         id: changesets
