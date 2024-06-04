@@ -23,7 +23,8 @@
     "build": "tsup",
     "dev": "tsup --watch",
     "lint": "tsc",
-    "ci": "pnpm run lint && pnpm run build"
+    "ci": "pnpm run lint && pnpm run build",
+    "release": "pnpm run lint && pnpm run build && changeset publish"
   },
   "keywords": [
     "discogs",
