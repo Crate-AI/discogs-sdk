@@ -12,10 +12,12 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v3
+
       - name: Setup pnpm Environment
         uses: pnpm/action-setup@v2
         with:
           version: 7
+
       - name: Setup Node.js Environment
         uses: actions/setup-node@v3
         with:
@@ -24,9 +26,9 @@ jobs:
           cache-dependency-path: core/pnpm-lock.yaml
 
       - name: Install Project Dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm install
         working-directory: core
-        
+
       - name: Create Release Pull Request or Publish to Registry
         id: changesets
         uses: changesets/action@v1
@@ -35,4 +37,3 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-        
