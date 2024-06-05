@@ -42,3 +42,6 @@ discogs.auth.authenticate().then(() => {
 
 That's it! You're now ready to use the library in your project.
 
+## Contributing
+
+We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for details on how to contribute.
