@@ -7,10 +7,14 @@ import {
   outro,
   text,
   note,
+  confirm,
   isCancel,
-  cancel
+  cancel,
+  spinner
 } from '@clack/prompts';
 import colors from 'picocolors';
+import http from 'http';
+import url from 'url';
 
 export class Auth extends Base {
 
@@ -23,16 +27,31 @@ export class Auth extends Base {
             console.log('\n');
             intro(colors.bgBlue('Discogs Authentication'));
             const requestTokenResponse = await this.getRequestToken();
-            note(`Please visit this URL to authorize the application:\n\n${requestTokenResponse.verificationURL}`, 'Authorization URL');
+            const authUrl = requestTokenResponse.verificationURL;
 
-            const oauthVerifier = await text({
-                message: 'Please enter the OAuth verifier:'
+            const openBrowser = await confirm({
+                message: 'Would you like to open the authorization URL in your browser automatically?',
             });
 
-            if (isCancel(oauthVerifier)) {
+            if (isCancel(openBrowser)) {
                 cancel('Operation cancelled');
                 return;
             }
+
+            if (openBrowser) {
+                const { default: open } = await import('open');
+                await open(authUrl);
+                note(`Opening this URL in your browser for authorization...`, 'Authorization URL');
+            } else {
+                note(`Please visit this URL to authorize the application:\n\n${authUrl}`, 'Authorization URL');
+            }
+
+            const authSpinner = spinner();
+            authSpinner.start('Waiting for authorization...');
+
+            const oauthVerifier = await this.getOAuthVerifier();
+
+            authSpinner.stop('Authorization completed.');
 
             const accessTokenResponse = await this.getAccessToken({
                 oauthToken: requestTokenResponse.oauthRequestToken,
@@ -58,7 +77,7 @@ export class Auth extends Base {
         const timestamp = this.generateTimestamp();
         const nonce = this.nonceGetter;
         const body = new URLSearchParams({
-            'oauth_callback': this.callbackUrlGetter,
+            'oauth_callback': 'http://localhost:4567/callback',
             'oauth_consumer_key': this.consumerKey,
             'oauth_nonce': nonce,
             'oauth_signature_method': 'PLAINTEXT',
@@ -69,6 +88,8 @@ export class Auth extends Base {
         const data = await this.request<URLSearchParams>('oauth/request_token', {
             method: 'POST'
         }, body);
+
+        StorageService.setItem('oauthRequestTokenSecret', data.get('oauth_token_secret')!); // Store the token secret
 
         return {
             oauthRequestToken: data.get('oauth_token')!,
@@ -129,16 +150,31 @@ export class Auth extends Base {
         try {
             intro('Discogs Authentication');
             const requestToken = await this.getRequestToken();
-            note(`Please visit this URL to authorize the application:\n\n${requestToken.verificationURL}`, 'Authorization URL');
+            const authUrl = requestToken.verificationURL;
 
-            const oauthVerifier = await text({
-                message: 'Please enter the OAuth verifier:'
+            const openBrowser = await confirm({
+                message: 'Would you like to open the authorization URL in your browser automatically?',
             });
 
-            if (isCancel(oauthVerifier)) {
+            if (isCancel(openBrowser)) {
                 cancel('Operation cancelled');
                 return;
             }
+
+            if (openBrowser) {
+                const { default: open } = await import('open');
+                await open(authUrl);
+                note(`Opening this URL in your browser for authorization...`, 'Authorization URL');
+            } else {
+                note(`Please visit this URL to authorize the application:\n\n${authUrl}`, 'Authorization URL');
+            }
+
+            const authSpinner = spinner();
+            authSpinner.start('Waiting for authorization...');
+
+            const oauthVerifier = await this.getOAuthVerifier();
+
+            authSpinner.stop('Authorization completed.');
 
             const accessToken = await this.getAccessToken({
                 oauthToken: requestToken.oauthRequestToken,
@@ -150,8 +186,8 @@ export class Auth extends Base {
             StorageService.setItem('oauthAccessTokenSecret', accessToken.oauthAccessTokenSecret);
 
             const userIdentity: UserIdentityResponse = await this.getUserIdentity({
-                oauthToken: accessToken.oauthAccessToken,
-                oauthTokenSecret: accessToken.oauthAccessTokenSecret
+                oauthToken: StorageService.getItem('oauthAccessToken'),
+                oauthTokenSecret: StorageService.getItem('oauthAccessTokenSecret')
             });
 
             StorageService.setItem('userIdentity', userIdentity);
@@ -162,6 +198,59 @@ export class Auth extends Base {
             const errorMessage = `Authentication flow failed due to error: ${error.message || error}`;
             note(`${errorMessage}\n\nPlease check your input and try again.`, 'Error');
             cancel('Operation cancelled due to error.');
+            throw error;
         }
+    }
+
+    private async getOAuthVerifier(): Promise<string> {
+        return new Promise<string>((resolve, reject) => {
+            const server = http.createServer((req, res) => {
+                if (req.url) {
+                    const queryObject = url.parse(req.url, true).query;
+                    const oauthVerifier = queryObject['oauth_verifier'] as string | undefined;
+
+                    if (!oauthVerifier) {
+                        res.writeHead(400, { 'Content-Type': 'text/plain' });
+                        res.end('Missing oauth_verifier');
+                        reject(new Error('Missing oauth_verifier'));
+                        return;
+                    }
+
+                    res.writeHead(200, { 'Content-Type': 'text/html' });
+                    res.end(`
+                        <!DOCTYPE html>
+                        <html lang="en">
+                        <head>
+                            <meta charset="UTF-8">
+                            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                            <title>Auto Close Window</title>
+                        </head>
+                        <body>
+                            <p>Authentication successful! This window will close  in <span id="seconds">5</span> seconds.</p>
+                            <script>
+                                let seconds = 5;
+                                const countdownElement = document.getElementById('seconds');
+
+                                const countdown = setInterval(() => {
+                                    seconds--;
+                                    countdownElement.textContent = seconds;
+                                    if (seconds <= 0) {
+                                        clearInterval(countdown);
+                                        document.body.innerHTML = '<p>You can close this window now.</p>';
+                                    }
+                                }, 1000);
+                            </script>
+                        </body>
+                        </html>
+                    `);
+                    server.close();
+                    resolve(oauthVerifier);
+                }
+            });
+
+            server.listen(4567, () => {
+                // Server listening on port 4567
+            });
+        });
     }
 }

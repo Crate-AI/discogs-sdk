@@ -1,6 +1,6 @@
 {
   "name": "@crate.ai/discogs-sdk",
-  "version": "1.2.6",
+  "version": "1.2.7",
   "description": "an SDK for the Discogs API",
   "repository": {
     "type": "git",
@@ -45,6 +45,7 @@
   },
   "dependencies": {
     "@clack/prompts": "^0.7.0",
+    "open": "^10.1.0",
     "picocolors": "^1.0.1"
   }
 }
