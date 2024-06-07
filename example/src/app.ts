@@ -17,6 +17,12 @@ const discogs = new DiscogsSDK({
 
     const identity = await discogs.auth.getUserIdentity({});
     console.log(identity);
+
+    const results = await discogs.search.getSearchResults({
+      query: "rush",
+      country: "canada",
+    });
+    console.log(results);
   } catch (error) {
     console.error("Error:", error);
   }
