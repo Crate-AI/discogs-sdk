@@ -3,11 +3,10 @@ import path from 'path';
 
 // Configure storage path to a directory where you have write permissions
 StorageService.storagePath = path.join(process.cwd(), 'storage.json');
-console.log('storagePath', StorageService.storagePath);
 
 const discogs = new DiscogsSDK({
-  DiscogsConsumerKey: "your_consumer_key",
-  DiscogsConsumerSecret: "your_consumer_secret",
+  DiscogsConsumerKey: "YOUR_CONSUMER_KEY",
+  DiscogsConsumerSecret: "YOUR_CONSUMER_SECRET",
 });
 
 (async () => {

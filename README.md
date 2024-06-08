@@ -25,19 +25,28 @@ import path from 'path';
 StorageService.storagePath = path.join(process.cwd(), 'storage.json');
 
 const discogs = new DiscogsSDK({
- DiscogsConsumerKey: "yourConsumerKey",
- DiscogsConsumerSecret: "yourConsumerSecret"
+  DiscogsConsumerKey: "YOUR_CONSUMER_KEY",
+  DiscogsConsumerSecret: "YOUR_CONSUMER_SECRET",
 });
 
-discogs.auth.authenticate().then(() => {
-  console.log('Authenticated');
-  discogs.auth.getUserIdentity({}).then((identity) => {
+(async () => {
+  try {
+    const res = await discogs.auth.authenticate();
+    console.log("Authenticated");
+
+    const identity = await discogs.auth.getUserIdentity({});
     console.log(identity);
-    discogs.collection.getCollection({}).then((collection) => {
-      console.log(collection.pagination.items);
+
+    const results = await discogs.search.getSearchResults({
+      query: "rush",
+      country: "canada",
     });
-}).catch(error => console.error('Error in fetching user identity:', error));
-}).catch(error => console.error('Error in authentication:', error));
+    console.log(results);
+  } catch (error) {
+    console.error("Error:", error);
+  }
+})();
+
 ```
 
 That's it! You're now ready to use the library in your project.

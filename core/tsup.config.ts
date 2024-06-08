@@ -8,6 +8,8 @@ export default defineConfig({
     'src/auth/types.ts',
     'src/collection/index.ts',
     'src/collection/types.ts',
+    'src/search/index.ts',
+    'src/search/types.ts',
   ],
   format: ['cjs', 'esm'],
   dts: true,
