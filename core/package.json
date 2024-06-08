@@ -11,7 +11,8 @@
   },
   "homepage": "https://github.com/Crate-AI/discogs-sdk#readme",
   "publishConfig": {
-    "access": "public"
+    "access": "public",
+    "registry": "https://www.npmjs.com/package/@crate.ai/discogs-sdk"
   },
   "engines": {
     "node": ">=18.0.0"
