@@ -10,43 +10,20 @@ const discogs = new DiscogsSDK({
   DiscogsConsumerSecret: "your_consumer_secret",
 });
 
-// console.log('discogs', discogs);
+(async () => {
+  try {
+    const res = await discogs.auth.authenticate();
+    console.log("Authenticated");
 
-// discogs.auth.authenticate().then((res) => {
-//     console.log('Authenticated');
-//     console.log('response', res);
-// });
+    const identity = await discogs.auth.getUserIdentity({});
+    console.log(identity);
 
-
-// discogs.auth.authenticate().then(() => {
-//   console.log('Authenticated');
-//   discogs.auth.getUserIdentity({}).then((identity) => {
-//     console.log(identity);
-//     discogs.collection.getCollection({}).then((collection) => {
-//       console.log(collection.pagination.items);
-//     });
-// }).catch(error => console.error('Error in fetching user identity:', error));
-// }).catch(error => console.error('Error in authentication:', error));
-
-// discogs.authenticateAndGetIdentity().then((identity) => {
-//   console.log(identity);
-//   // Ensure collection is fetched after authentication is successful
-//   discogs.getCollection({}).then((collection) => {
-//     console.log(collection.pagination.items);
-//   });
-// }).catch(error => console.error('Error in authentication:', error));
-
-
-
-// discogs.getUserIdentity({}).then((identity) => {
-//     console.log(identity);
-// });
-// discogs.getUserIdentity({}).then((identity) => {
-//     console.log(identity);
-// }).catch(error => console.error('Error in fetching user identity:', error));
-
-
-// discogs.collection.getCollection({folderId: 1}).then((collection) => {
-//     console.log(collection.pagination.items);
-// }).catch(error => console.error('Error in fetching collection:', error));
-
+    const results = await discogs.search.getSearchResults({
+      query: "rush",
+      country: "canada",
+    });
+    console.log(results);
+  } catch (error) {
+    console.error("Error:", error);
+  }
+})();
