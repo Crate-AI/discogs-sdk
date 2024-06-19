@@ -1,18 +1,44 @@
 import { DiscogsSDK, StorageService } from '@crate.ai/discogs-sdk';
 import path from 'path';
+import 'dotenv/config';
+import {
+  intro,
+  outro,
+  note,
+  confirm,
+  isCancel,
+  cancel,
+  spinner
+} from '@clack/prompts';
+import colors from 'picocolors';
 
 // Configure storage path to a directory where you have write permissions
 StorageService.storagePath = path.join(process.cwd(), 'storage.json');
 
 const discogs = new DiscogsSDK({
-  DiscogsConsumerKey: "YOUR_CONSUMER_KEY",
-  DiscogsConsumerSecret: "YOUR_CONSUMER_SECRET",
+  DiscogsConsumerKey: process.env.CONSUMER_KEY || "",
+  DiscogsConsumerSecret: process.env.CONSUMER_SECRET || "",
 });
 
 (async () => {
   try {
-    const res = await discogs.auth.authenticate();
-    console.log("Authenticated");
+    intro(colors.bgBlue('Discogs Authenticationzzz'));
+
+    const openBrowser = await confirm({
+      message: 'Would you like to open the authorization URL in your browser automatically?',
+    });
+
+    if (isCancel(openBrowser)) {
+      cancel('Operation cancelled');
+      return;
+    }
+
+    const authSpinner = spinner();
+    authSpinner.start('Waiting for authorization...');
+
+    await discogs.auth.authenticate();
+
+    authSpinner.stop('Authorization completed.');
 
     const identity = await discogs.auth.getUserIdentity({});
     console.log(identity);
@@ -22,7 +48,10 @@ const discogs = new DiscogsSDK({
       country: "canada",
     });
     console.log(results);
-  } catch (error) {
-    console.error("Error:", error);
+
+    outro('Authentication successful!');
+  } catch (error : any) {
+    note(`Error: ${error.message || error}`, 'Error');
+    cancel('Operation cancelled due to error.');
   }
 })();
