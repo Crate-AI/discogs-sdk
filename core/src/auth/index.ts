@@ -1,58 +1,23 @@
 import { Base, Config } from "../base";
 import { RequestTokenResponse, AccessTokenResponse, AccessTokenParams, UserIdentityResponse, UserIdentityParams } from "./types";
-import { setTimeout as sleep } from 'node:timers/promises';
 import { StorageService } from '../utils';
-import {
-  intro,
-  outro,
-  text,
-  note,
-  confirm,
-  isCancel,
-  cancel,
-  spinner
-} from '@clack/prompts';
-import colors from 'picocolors';
 import http from 'http';
 import url from 'url';
 
 export class Auth extends Base {
-
     constructor(config: Config) {
         super(config);
     }
 
     async authenticate(): Promise<void> {
         try {
-            console.log('\n');
-            intro(colors.bgBlue('Discogs Authentication'));
+            console.log('Discogs Authentication');
             const requestTokenResponse = await this.getRequestToken();
             const authUrl = requestTokenResponse.verificationURL;
 
-            const openBrowser = await confirm({
-                message: 'Would you like to open the authorization URL in your browser automatically?',
-            });
-
-            if (isCancel(openBrowser)) {
-                cancel('Operation cancelled');
-                return;
-            }
-
-            if (openBrowser) {
-                const { default: open } = await import('open');
-                await open(authUrl);
-                note(`Opening this URL in your browser for authorization...`, 'Authorization URL');
-            } else {
-                note(`Please visit this URL to authorize the application:\n\n${authUrl}`, 'Authorization URL');
-            }
-
-            const authSpinner = spinner();
-            authSpinner.start('Waiting for authorization...');
+            console.log(`Please visit this URL to authorize the application:\n\n${authUrl}`);
 
             const oauthVerifier = await this.getOAuthVerifier();
-
-            authSpinner.stop('Authorization completed.');
-
             const accessTokenResponse = await this.getAccessToken({
                 oauthToken: requestTokenResponse.oauthRequestToken,
                 tokenSecret: requestTokenResponse.oauthRequestTokenSecret,
@@ -61,11 +26,9 @@ export class Auth extends Base {
 
             StorageService.setItem('oauthAccessToken', accessTokenResponse.oauthAccessToken);
             StorageService.setItem('oauthAccessTokenSecret', accessTokenResponse.oauthAccessTokenSecret);
-            outro('Authentication successful!');
+            console.log('Authentication successful!');
         } catch (error) {
-            const errorMessage = `Authentication failed due to error: ${error.message || error}`;
-            note(`${errorMessage}\n\nPlease check your input and try again.`, 'Error');
-            cancel('Operation cancelled due to error.');
+            console.error(`Authentication failed due to error: ${error.message || error}`);
         }
     }
 
@@ -89,7 +52,7 @@ export class Auth extends Base {
             method: 'POST'
         }, body);
 
-        StorageService.setItem('oauthRequestTokenSecret', data.get('oauth_token_secret')!); // Store the token secret
+        StorageService.setItem('oauthRequestTokenSecret', data.get('oauth_token_secret')!);
 
         return {
             oauthRequestToken: data.get('oauth_token')!,
@@ -101,13 +64,13 @@ export class Auth extends Base {
     async getAccessToken(params: AccessTokenParams): Promise<AccessTokenResponse> {
         const timestamp = this.generateTimestamp();
         const nonce = this.nonceGetter;
-    
+
         const body = new URLSearchParams({
             'oauth_token': params.oauthToken,
             'oauth_verifier': params.oauthVerifier
         }).toString();
         const authorizationHeader = this.generateOAuthHeader(params.oauthToken, params.tokenSecret);
-    
+
         const options = {
             method: 'POST',
             headers: {
@@ -129,7 +92,7 @@ export class Auth extends Base {
     async getUserIdentity(params: UserIdentityParams): Promise<UserIdentityResponse> {
         const oauthToken = params.oauthToken || StorageService.getItem('oauthAccessToken');
         const oauthTokenSecret = params.oauthTokenSecret || StorageService.getItem('oauthAccessTokenSecret');
-        const endpoint = 'oauth/identity';  // Remove the leading slash to ensure no double slash with base URL
+        const endpoint = 'oauth/identity';
         const authorizationHeader = this.generateOAuthHeader(oauthToken, oauthTokenSecret);
 
         const headers = {
@@ -144,62 +107,6 @@ export class Auth extends Base {
         const response = await this.request<UserIdentityResponse>(endpoint, options);
         StorageService.setItem('userIdentity', response);
         return response;
-    }
-
-    async authenticateAndGetIdentity(): Promise<UserIdentityResponse | AccessTokenResponse> {
-        try {
-            intro('Discogs Authentication');
-            const requestToken = await this.getRequestToken();
-            const authUrl = requestToken.verificationURL;
-
-            const openBrowser = await confirm({
-                message: 'Would you like to open the authorization URL in your browser automatically?',
-            });
-
-            if (isCancel(openBrowser)) {
-                cancel('Operation cancelled');
-                return;
-            }
-
-            if (openBrowser) {
-                const { default: open } = await import('open');
-                await open(authUrl);
-                note(`Opening this URL in your browser for authorization...`, 'Authorization URL');
-            } else {
-                note(`Please visit this URL to authorize the application:\n\n${authUrl}`, 'Authorization URL');
-            }
-
-            const authSpinner = spinner();
-            authSpinner.start('Waiting for authorization...');
-
-            const oauthVerifier = await this.getOAuthVerifier();
-
-            authSpinner.stop('Authorization completed.');
-
-            const accessToken = await this.getAccessToken({
-                oauthToken: requestToken.oauthRequestToken,
-                tokenSecret: requestToken.oauthRequestTokenSecret,
-                oauthVerifier: oauthVerifier
-            });
-
-            StorageService.setItem('oauthAccessToken', accessToken.oauthAccessToken);
-            StorageService.setItem('oauthAccessTokenSecret', accessToken.oauthAccessTokenSecret);
-
-            const userIdentity: UserIdentityResponse = await this.getUserIdentity({
-                oauthToken: StorageService.getItem('oauthAccessToken'),
-                oauthTokenSecret: StorageService.getItem('oauthAccessTokenSecret')
-            });
-
-            StorageService.setItem('userIdentity', userIdentity);
-
-            outro('Authentication successful!');
-            return userIdentity;
-        } catch (error) {
-            const errorMessage = `Authentication flow failed due to error: ${error.message || error}`;
-            note(`${errorMessage}\n\nPlease check your input and try again.`, 'Error');
-            cancel('Operation cancelled due to error.');
-            throw error;
-        }
     }
 
     private async getOAuthVerifier(): Promise<string> {
@@ -226,7 +133,7 @@ export class Auth extends Base {
                             <title>Auto Close Window</title>
                         </head>
                         <body>
-                            <p>Authentication successful! This window will close  in <span id="seconds">5</span> seconds.</p>
+                            <p>Authentication successful! This window will close in <span id="seconds">5</span> seconds.</p>
                             <script>
                                 let seconds = 5;
                                 const countdownElement = document.getElementById('seconds');
