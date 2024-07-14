@@ -1,26 +1,36 @@
 import path from 'path';
 import fs from 'fs';
-
 class StorageService {
-  // static storagePath = path.join(process.cwd(), 'storage.json');
   static storagePath: string;
 
   static setItem(key: string, value: any) {
-      let storage = this.loadStorage();
+      const storage = this.loadStorage();
       storage[key] = value;
       fs.writeFileSync(this.storagePath, JSON.stringify(storage, null, 2), 'utf8');
   }
 
   static getItem(key: string) {
-      let storage = this.loadStorage();
+      const storage = this.loadStorage();
       return storage[key];
   }
 
   private static loadStorage() {
-      if (fs.existsSync(this.storagePath)) {
-          return JSON.parse(fs.readFileSync(this.storagePath, 'utf8'));
+      if (!fs.existsSync(this.storagePath)) {
+          fs.writeFileSync(this.storagePath, JSON.stringify({}), 'utf8');
+          return {};
       }
-      return {};
+
+      const fileContent = fs.readFileSync(this.storagePath, 'utf8');
+      if (!fileContent) {
+          return {};
+      }
+
+      try {
+          return JSON.parse(fileContent);
+      } catch (error) {
+          console.error('Error parsing JSON file:', error);
+          return {};
+      }
   }
 }
   

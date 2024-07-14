@@ -33,7 +33,8 @@ export class Auth extends Base {
     }
 
     private createVerificationURL(token: string): string {
-        return `https://www.discogs.com/oauth/authorize?oauth_token=${token}`;
+        const url = `https://www.discogs.com/oauth/authorize?oauth_token=${token}`;
+        return url;
     }
 
     async getRequestToken(): Promise<RequestTokenResponse> {
@@ -47,18 +48,23 @@ export class Auth extends Base {
             'oauth_timestamp': timestamp,
             'oauth_version': '1.0',
         }).toString();
-
-        const data = await this.request<URLSearchParams>('oauth/request_token', {
+    
+        const responseParams = await this.request<Record<string, string>>('oauth/request_token', {
             method: 'POST'
         }, body);
+    
+        const oauth_token = responseParams['oauth_token'];
+        const oauth_token_secret = responseParams['oauth_token_secret'];
+        const verificationURL = `https://www.discogs.com/oauth/authorize?oauth_token=${oauth_token}`;
 
-        StorageService.setItem('oauthRequestTokenSecret', data.get('oauth_token_secret')!);
-
-        return {
-            oauthRequestToken: data.get('oauth_token')!,
-            oauthRequestTokenSecret: data.get('oauth_token_secret')!,
-            verificationURL: this.createVerificationURL(data.get('oauth_token')!)
+        const returnResponse = {
+            oauthRequestToken: oauth_token,
+            oauthRequestTokenSecret: oauth_token_secret,
+            verificationURL: verificationURL
         };
+    
+        StorageService.setItem('oauthRequestTokenSecret', oauth_token_secret);
+        return returnResponse;
     }
 
     async getAccessToken(params: AccessTokenParams): Promise<AccessTokenResponse> {
@@ -109,7 +115,7 @@ export class Auth extends Base {
         return response;
     }
 
-    private async getOAuthVerifier(): Promise<string> {
+    async getOAuthVerifier(): Promise<string> {
         return new Promise<string>((resolve, reject) => {
             const server = http.createServer((req, res) => {
                 if (req.url) {

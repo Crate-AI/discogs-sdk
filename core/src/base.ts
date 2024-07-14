@@ -104,42 +104,47 @@ export abstract class Base {
      * @returns {Promise<T>} - A promise that resolves with the API response.
      */
     protected async request<T>(endpoint: string, options?: RequestInit, body?: any): Promise<T> {
-        const url = `${this.baseUrl}${endpoint.startsWith('/') ? '' : '/'}${endpoint}`;
+        const url = `${this.baseUrl}${endpoint.startsWith('/') ? '' : '/'}${endpoint}`;  
         const headers = new Headers({
             'Authorization': this.generateOAuthHeader(),
             'User-Agent': this.userAgent
         });
-
+    
         if (body && typeof body === 'string') {
             headers.set('Content-Type', 'application/x-www-form-urlencoded');
         } else if (body) {
             headers.set('Content-Type', 'application/json');
             body = JSON.stringify(body);
         }
-
+    
         const config = {
             headers: headers,
             ...options,
             body: body,
             method: options?.method || 'GET'
         };
-
+    
         const response = await fetch(url, config);
+        const responseText = await response.text();
+    
         if (!response.ok) {
-            if(response.status === 401){
+            if (response.status === 401) {
                 console.log('Token invalid or Revoked. Refreshing token...');
                 throw new Error('Token invalid or Revoked. Refreshing token...');
             }
-            const responseBody = await response.text();
-        throw new Error(`HTTP error ${response.status}: ${responseBody}`);
+            throw new Error(`HTTP error ${response.status}: ${responseText}`);
         }
-        // Check response headers to determine how to parse the response
+    
         const contentType = response.headers.get('Content-Type') || '';
         if (contentType.includes('application/json')) {
-            return response.json() as Promise<T>;
+            return JSON.parse(responseText) as T;
         } else if (contentType.includes('application/x-www-form-urlencoded')) {
-            const text = await response.text();
-            return new URLSearchParams(text) as unknown as Promise<T>;
+            const params = new URLSearchParams(responseText);
+            const result: Record<string, string> = {};
+            params.forEach((value, key) => {
+                result[key] = value;
+            });
+            return result as unknown as T;
         } else {
             throw new Error(`Unsupported content type: ${contentType}`);
         }
