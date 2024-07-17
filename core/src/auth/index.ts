@@ -37,11 +37,11 @@ export class Auth extends Base {
         return url;
     }
 
-    async getRequestToken(): Promise<RequestTokenResponse> {
+    async getRequestToken(callbackUrl?: string): Promise<RequestTokenResponse> {
         const timestamp = this.generateTimestamp();
         const nonce = this.nonceGetter;
         const body = new URLSearchParams({
-            'oauth_callback': 'http://localhost:4567/callback',
+            'oauth_callback': callbackUrl? callbackUrl : 'http://localhost:4567/callback',
             'oauth_consumer_key': this.consumerKey,
             'oauth_nonce': nonce,
             'oauth_signature_method': 'PLAINTEXT',
