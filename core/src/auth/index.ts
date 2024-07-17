@@ -70,13 +70,13 @@ export class Auth extends Base {
     async getAccessToken(params: AccessTokenParams): Promise<AccessTokenResponse> {
         const timestamp = this.generateTimestamp();
         const nonce = this.nonceGetter;
-
+    
         const body = new URLSearchParams({
             'oauth_token': params.oauthToken,
             'oauth_verifier': params.oauthVerifier
         }).toString();
         const authorizationHeader = this.generateOAuthHeader(params.oauthToken, params.tokenSecret);
-
+    
         const options = {
             method: 'POST',
             headers: {
@@ -85,13 +85,18 @@ export class Auth extends Base {
                 'User-Agent': this.userAgentGetter
             }
         };
-        const response = await this.request<URLSearchParams>('oauth/access_token', options, body);
-        if (!response.get('oauth_token')) {
+        
+        const response = await this.request<string>('oauth/access_token', options, body);
+        
+        console.log('Raw response:', response);
+    
+        const responseParams = new URLSearchParams(response);
+        if (!responseParams.get('oauth_token')) {
             throw new Error('Unable to retrieve access token. Your request token may have expired.');
         }
         return {
-            oauthAccessToken: response.get('oauth_token')!,
-            oauthAccessTokenSecret: response.get('oauth_token_secret')!
+            oauthAccessToken: responseParams.get('oauth_token')!,
+            oauthAccessTokenSecret: responseParams.get('oauth_token_secret')!
         };
     }
 
