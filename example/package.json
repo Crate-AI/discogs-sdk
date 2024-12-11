@@ -6,13 +6,14 @@
   "type": "module",
   "scripts": {
     "lint": "tsc",
-    "start": "node --loader ts-node/esm src/app.ts"
+    "start": "node --loader ts-node/esm src/app.ts",
+    "clean": "rm -rf dist && rm -rf node_modules"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@crate.ai/discogs-sdk": "file:../core",
+    "@crate.ai/discogs-sdk": "link:../core",
     "dotenv": "^16.4.5",
     "@clack/prompts": "^0.7.0",
     "picocolors": "^1.0.1"

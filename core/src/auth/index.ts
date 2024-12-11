@@ -1,174 +1,122 @@
-import { Base, Config } from "../base";
-import { RequestTokenResponse, AccessTokenResponse, AccessTokenParams, UserIdentityResponse, UserIdentityParams } from "./types";
-import { StorageService } from '../utils';
+import { BaseImplementation } from "../base";
+import { UserIdentityResponse, UserIdentityParams } from "./types";
 import http from 'http';
 import url from 'url';
 
-export class Auth extends Base {
-    constructor(config: Config) {
-        super(config);
-    }
+export class Auth {
+    constructor(public readonly base: BaseImplementation) {}
 
     async authenticate(): Promise<void> {
         try {
-            console.log('Discogs Authentication');
-            const requestTokenResponse = await this.getRequestToken();
-            const authUrl = requestTokenResponse.verificationURL;
-
+            const oauthHandler = this.base.getOAuthHandler();
+            const tokenManager = this.base.getTokenManager();
+            
+            const authUrl = await oauthHandler.getAuthorizationUrl();
             console.log(`Please visit this URL to authorize the application:\n\n${authUrl}`);
-
+    
             const oauthVerifier = await this.getOAuthVerifier();
-            const accessTokenResponse = await this.getAccessToken({
-                oauthToken: requestTokenResponse.oauthRequestToken,
-                tokenSecret: requestTokenResponse.oauthRequestTokenSecret,
-                oauthVerifier: oauthVerifier
+    
+            const accessTokenResponse = await oauthHandler.handleCallback({
+                oauthVerifier,
+                oauthToken: tokenManager.getRequestToken() || '',
+                oauthTokenSecret: tokenManager.getRequestTokenSecret() || ''
             });
 
-            StorageService.setItem('oauthAccessToken', accessTokenResponse.oauthAccessToken);
-            StorageService.setItem('oauthAccessTokenSecret', accessTokenResponse.oauthAccessTokenSecret);
+            tokenManager.setAccessToken(accessTokenResponse.oauthAccessToken);
+            tokenManager.setAccessTokenSecret(accessTokenResponse.oauthAccessTokenSecret);
+    
             console.log('Authentication successful!');
         } catch (error) {
-            console.error(`Authentication failed due to error: ${error.message || error}`);
+            console.error(`Authentication failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            throw error;
         }
     }
 
-    private createVerificationURL(token: string): string {
-        const url = `https://www.discogs.com/oauth/authorize?oauth_token=${token}`;
-        return url;
-    }
-
-    async getRequestToken(callbackUrl?: string): Promise<RequestTokenResponse> {
-        const timestamp = this.generateTimestamp();
-        const nonce = this.nonceGetter;
-        const body = new URLSearchParams({
-            'oauth_callback': callbackUrl? callbackUrl : 'http://localhost:4567/callback',
-            'oauth_consumer_key': this.consumerKey,
-            'oauth_nonce': nonce,
-            'oauth_signature_method': 'PLAINTEXT',
-            'oauth_timestamp': timestamp,
-            'oauth_version': '1.0',
-        }).toString();
+    async getUserIdentity(params?: UserIdentityParams): Promise<UserIdentityResponse> {
+        try {
+            const tokenManager = this.base.getTokenManager();
+            const oauthToken = params?.oauthToken || tokenManager.getAccessToken();
+            const oauthTokenSecret = params?.oauthTokenSecret || tokenManager.getAccessTokenSecret();
     
-        const responseParams = await this.request<Record<string, string>>('oauth/request_token', {
-            method: 'POST'
-        }, body);
-    
-        const oauth_token = responseParams['oauth_token'];
-        const oauth_token_secret = responseParams['oauth_token_secret'];
-        const verificationURL = `https://www.discogs.com/oauth/authorize?oauth_token=${oauth_token}`;
-
-        const returnResponse = {
-            oauthRequestToken: oauth_token,
-            oauthRequestTokenSecret: oauth_token_secret,
-            verificationURL: verificationURL
-        };
-    
-        StorageService.setItem('oauthRequestTokenSecret', oauth_token_secret);
-        return returnResponse;
-    }
-
-    async getAccessToken(params: AccessTokenParams): Promise<AccessTokenResponse> {
-        const timestamp = this.generateTimestamp();
-        const nonce = this.nonceGetter;
-    
-        const body = new URLSearchParams({
-            'oauth_token': params.oauthToken,
-            'oauth_verifier': params.oauthVerifier
-        }).toString();
-        const authorizationHeader = this.generateOAuthHeader(params.oauthToken, params.tokenSecret);
-    
-        const options = {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/x-www-form-urlencoded',
-                'Authorization': authorizationHeader,
-                'User-Agent': this.userAgentGetter
+            if (!oauthToken || !oauthTokenSecret) {
+                throw new Error('Authentication required. Please call authenticate() first.');
             }
-        };
-        
-        const response = await this.request<string>('oauth/access_token', options, body);
-        
-        console.log('Raw response:', response);
+            
+            const authHeader = this.base.generateOAuthHeaderPublic(oauthToken, oauthTokenSecret);
+            const headers = {
+                'Authorization': authHeader,
+                'User-Agent': this.base.getUserAgent()
+            };
     
-        const responseParams = new URLSearchParams(response);
-        if (!responseParams.get('oauth_token')) {
-            throw new Error('Unable to retrieve access token. Your request token may have expired.');
+            const identity = await this.base.requestPublic<UserIdentityResponse>('oauth/identity', {
+                method: 'GET',
+                headers
+            });
+    
+            this.base.getStorage().setItem('userIdentity', JSON.stringify(identity));
+            
+            return identity;
+        } catch(error) {
+            throw new Error(`Failed to fetch user identity: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
-        return {
-            oauthAccessToken: responseParams.get('oauth_token')!,
-            oauthAccessTokenSecret: responseParams.get('oauth_token_secret')!
-        };
     }
 
-    async getUserIdentity(params: UserIdentityParams): Promise<UserIdentityResponse> {
-        const oauthToken = params.oauthToken || StorageService.getItem('oauthAccessToken');
-        const oauthTokenSecret = params.oauthTokenSecret || StorageService.getItem('oauthAccessTokenSecret');
-        const endpoint = 'oauth/identity';
-        const authorizationHeader = this.generateOAuthHeader(oauthToken, oauthTokenSecret);
-
-        const headers = {
-            'Content-Type': 'application/x-www-form-urlencoded',
-            'Authorization': authorizationHeader,
-            'User-Agent': this.userAgentGetter
-        };
-        const options = {
-            method: 'GET',
-            headers: headers
-        };
-        const response = await this.request<UserIdentityResponse>(endpoint, options);
-        StorageService.setItem('userIdentity', response);
-        return response;
-    }
-
-    async getOAuthVerifier(): Promise<string> {
+    private async getOAuthVerifier(): Promise<string> {
         return new Promise<string>((resolve, reject) => {
+            let serverStarted = false;
             const server = http.createServer((req, res) => {
-                if (req.url) {
-                    const queryObject = url.parse(req.url, true).query;
-                    const oauthVerifier = queryObject['oauth_verifier'] as string | undefined;
-
-                    if (!oauthVerifier) {
-                        res.writeHead(400, { 'Content-Type': 'text/plain' });
-                        res.end('Missing oauth_verifier');
-                        reject(new Error('Missing oauth_verifier'));
-                        return;
-                    }
-
-                    res.writeHead(200, { 'Content-Type': 'text/html' });
-                    res.end(`
-                        <!DOCTYPE html>
-                        <html lang="en">
-                        <head>
-                            <meta charset="UTF-8">
-                            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                            <title>Auto Close Window</title>
-                        </head>
-                        <body>
-                            <p>Authentication successful! This window will close in <span id="seconds">5</span> seconds.</p>
-                            <script>
-                                let seconds = 5;
-                                const countdownElement = document.getElementById('seconds');
-
-                                const countdown = setInterval(() => {
-                                    seconds--;
-                                    countdownElement.textContent = seconds;
-                                    if (seconds <= 0) {
-                                        clearInterval(countdown);
-                                        document.body.innerHTML = '<p>You can close this window now.</p>';
-                                    }
-                                }, 1000);
-                            </script>
-                        </body>
-                        </html>
-                    `);
+                if (!req.url) {
+                    return reject(new Error('No URL in request'));
+                }
+    
+                const queryObject = url.parse(req.url, true).query;
+                const oauthVerifier = queryObject['oauth_verifier'];
+    
+                if (!oauthVerifier || typeof oauthVerifier !== 'string') {
+                    res.writeHead(400, { 'Content-Type': 'text/plain' });
+                    res.end('Missing oauth_verifier');
                     server.close();
-                    resolve(oauthVerifier);
+                    return reject(new Error('Missing oauth_verifier'));
+                }
+    
+                res.writeHead(200, { 'Content-Type': 'text/html' });
+                res.end(`
+                    <!DOCTYPE html>
+                    <html lang="en">
+                    <head>
+                        <meta charset="UTF-8">
+                        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                        <title>Authentication Successful</title>
+                    </head>
+                    <body>
+                        <p>Authentication successful! You can close this window.</p>
+                    </body>
+                    </html>
+                `);
+    
+                server.close(() => {
+                    console.log('Server closed successfully');
+                });
+                resolve(oauthVerifier);
+            });
+    
+            server.on('error', (err) => {
+                if (!serverStarted) {
+                    reject(err);
                 }
             });
-
+    
             server.listen(4567, () => {
-                // Server listening on port 4567
+                serverStarted = true;
+                console.log('Waiting for OAuth callback on port 4567...');
             });
+    
+            setTimeout(() => {
+                if (server.listening) {
+                    server.close();
+                    reject(new Error('OAuth verification timeout after 5 minutes'));
+                }
+            }, 5 * 60 * 1000);
         });
     }
 }

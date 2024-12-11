@@ -1,46 +1,43 @@
-import { Base, Config } from "../base";
-import { StorageService } from "../utils";
+import { BaseImplementation } from "../base";
 import type { SearchParams, SearchResult } from "./types";
-import type { UserIdentityResponse } from "../auth/types";
 
+export class Search {
+    constructor(public readonly base: BaseImplementation) {}
 
-/**
- * Fetches collection items for a specific user from Discogs.
- * @param {string} username - The Discogs username.
- * @param {number} folderId - The specific folder ID in the collection; '0' for all items.
- * @param {number} page - Pagination page.
- * @param {number} perPage - Number of items per page.
- * @returns {Promise<any>} - The user's collection data.
- */
+    /**
+     * Searches the Discogs database with the provided parameters
+     * @param {SearchParams} params - Search parameters
+     * @returns {Promise<SearchResult[]>} Array of search results
+     */
+    async getSearchResults(params: SearchParams): Promise<SearchResult[]> {
+        const tokenManager = this.base.getTokenManager();
+        const accessToken = tokenManager.getAccessToken();
+        const tokenSecret = tokenManager.getRequestTokenSecret();
 
-export class Search extends Base {
+        if (!accessToken || !tokenSecret) {
+            throw new Error("Authentication required. Please authenticate first.");
+        }
 
-  constructor(config: Config) {
-    super(config);
-  }
+        const { query, ...otherParams } = params;
+        const queryParams = new URLSearchParams(
+            otherParams as Record<string, string>
+        ).toString();
 
-  async getSearchResults(params: SearchParams): Promise<SearchResult[]> {
-    const oauthToken: string = StorageService.getItem('oauthAccessToken');
-    const oauthTokenSecret: string = StorageService.getItem('oauthAccessTokenSecret');
-    const userIdentity: UserIdentityResponse = StorageService.getItem('userIdentity');
+        const authorizationHeader = this.base.generateOAuthHeaderPublic(
+            accessToken,
+            tokenSecret
+        );
 
-    const { query, ...otherParams } = params
+        const headers = {
+            Authorization: authorizationHeader,
+            "User-Agent": this.base.getUserAgent(),
+        };
 
-    const queryParams = new URLSearchParams(otherParams).toString();
+        const url = `/database/search?q=${encodeURIComponent(query)}&${queryParams}`;
 
-    const authorizationHeader = this.generateOAuthHeader(oauthToken, oauthTokenSecret);
-
-    const options = {
-      method: 'GET',
-      headers: {
-        'Authorization': authorizationHeader,
-        'User-Agent': this.userAgentGetter
-      }
-    };
-
-    const url = `/database/search?q=${params.query}&${queryParams}`;
-
-
-    return this.request<SearchResult[]>(url, options);
-  }
+        return this.base.requestPublic<SearchResult[]>(url, {
+            method: "GET",
+            headers,
+        });
+    }
 }
