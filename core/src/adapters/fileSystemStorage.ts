@@ -1,6 +1,4 @@
-// src/adapters/fileSystemStorage.ts
 import fs from 'fs';
-import path from 'path';
 import { StorageAdapter } from '../interfaces/storage';
 
 export class FileSystemStorageAdapter implements StorageAdapter {

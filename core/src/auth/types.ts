@@ -62,3 +62,7 @@ export declare type ProfileResources = {
     num_collection: number;
     num_wantlist: number;
 };
+
+export declare type AuthorizationUrlResponse = {
+    authorizationUrl: string;
+};  

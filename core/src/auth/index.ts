@@ -1,5 +1,11 @@
 import { BaseImplementation } from "../base";
-import { UserIdentityResponse, UserIdentityParams } from "./types";
+import { 
+    UserIdentityResponse, 
+    UserIdentityParams,
+    RequestTokenResponse,
+    AccessTokenResponse,
+    AccessTokenParams 
+} from "./types";
 import http from 'http';
 import url from 'url';
 
@@ -10,7 +16,44 @@ export class Auth {
         const oauthHandler = this.base.getOAuthHandler();
         return await oauthHandler.getAuthorizationUrl();
     }
-       
+
+    // Direct OAuth flow methods
+    async getRequestToken(): Promise<RequestTokenResponse> {
+        const oauthHandler = this.base.getOAuthHandler();
+        const tokenManager = this.base.getTokenManager();
+        
+        const authorizationUrl = await oauthHandler.getAuthorizationUrl();
+        const requestToken = tokenManager.getRequestToken();
+        const requestTokenSecret = tokenManager.getRequestTokenSecret();
+
+        if (!requestToken || !requestTokenSecret) {
+            throw new Error('Failed to obtain request tokens');
+        }
+
+        return {
+            oauthRequestToken: requestToken,
+            oauthRequestTokenSecret: requestTokenSecret,
+            verificationURL: authorizationUrl
+        };
+    }
+
+    async handleCallback(params: AccessTokenParams): Promise<AccessTokenResponse> {
+        const oauthHandler = this.base.getOAuthHandler();
+        const tokenManager = this.base.getTokenManager();
+        
+        const accessTokenResponse = await oauthHandler.handleCallback({
+            oauthVerifier: params.oauthVerifier,
+            oauthToken: params.oauthToken,
+            oauthTokenSecret: params.tokenSecret
+        });
+
+        tokenManager.setAccessToken(accessTokenResponse.oauthAccessToken);
+        tokenManager.setAccessTokenSecret(accessTokenResponse.oauthAccessTokenSecret);
+
+        return accessTokenResponse;
+    }
+
+    // CLI-style authentication
     async authenticate(): Promise<void> {
         try {
             const oauthHandler = this.base.getOAuthHandler();
@@ -44,7 +87,7 @@ export class Auth {
             const oauthTokenSecret = params?.oauthTokenSecret || tokenManager.getAccessTokenSecret();
     
             if (!oauthToken || !oauthTokenSecret) {
-                throw new Error('Authentication required. Please call authenticate() first.');
+                throw new Error('Authentication required. Please authenticate first.');
             }
             
             const authHeader = this.base.generateOAuthHeaderPublic(oauthToken, oauthTokenSecret);
