@@ -6,6 +6,11 @@ import url from 'url';
 export class Auth {
     constructor(public readonly base: BaseImplementation) {}
 
+    async getAuthorizationUrl(): Promise<string> {
+        const oauthHandler = this.base.getOAuthHandler();
+        return await oauthHandler.getAuthorizationUrl();
+    }
+       
     async authenticate(): Promise<void> {
         try {
             const oauthHandler = this.base.getOAuthHandler();
