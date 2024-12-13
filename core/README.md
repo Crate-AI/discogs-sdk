@@ -1,56 +1,160 @@
-# Discogs SDK
+# @crate.ai/discogs-sdk
 
-The Discogs SDK is a library that uses the Discogs API to authenticate and access their data. Currently, the library supports the authentication flow, collection, search and retrieving the user's identity.
+A TypeScript SDK for the Discogs API with dependency injection support.
 
-# Getting Started
-1. sign in to discogs and go to [developer settings](https://www.discogs.com/settings/developers)
-2. click on "New App"
-3. fill out the form and click "Create App"
-4. Obtain your consumer key and secret from Discogs [here](https://www.discogs.com/settings/developers).
-5. Install the library using npm: `npm install @crate.ai/discogs-sdk`.
+## Features
 
-# Usage
-1. Import the library into your project.
-2. Create a new instance of the library with your Discogs consumer key and secret.
-3. Call the `authenticate` method on the instance.
-4. The method will return a promise that resolves with the user's identity.
+- Full TypeScript support
+- OAuth authentication with interactive flow
+- Dependency injection for better testability
+- Customizable storage adapters
+- Comprehensive test coverage
+- Collection management
+- Search functionality
 
-Here's an example of how to use the library:
+## Installation
 
-```javascript
-import { DiscogsSDK, StorageService } from '@crate.ai/discogs-sdk';
-import path from 'path';
-
-// Configure storage path to a directory where you have write permissions
-StorageService.storagePath = path.join(process.cwd(), 'storage.json');
-
-const discogs = new DiscogsSDK({
-  DiscogsConsumerKey: "YOUR_CONSUMER_KEY",
-  DiscogsConsumerSecret: "YOUR_CONSUMER_SECRET",
-});
-
-(async () => {
-  try {
-    const res = await discogs.auth.authenticate();
-    console.log("Authenticated");
-
-    const identity = await discogs.auth.getUserIdentity({});
-    console.log(identity);
-
-    const results = await discogs.search.getSearchResults({
-      query: "rush",
-      country: "canada",
-    });
-    console.log(results);
-  } catch (error) {
-    console.error("Error:", error);
-  }
-})();
-
+```bash
+npm install @crate.ai/discogs-sdk
+# or
+pnpm add @crate.ai/discogs-sdk
+# or
+yarn add @crate.ai/discogs-sdk
 ```
 
-That's it! You're now ready to use the library in your project.
+## Setup
+
+1. Sign in to Discogs and go to [developer settings](https://www.discogs.com/settings/developers)
+2. Create a new application
+3. Note your consumer key and secret
+
+## Basic Usage
+
+```typescript
+import { DiscogsSDK } from '@crate.ai/discogs-sdk';
+
+const sdk = new DiscogsSDK({
+    DiscogsConsumerKey: 'your_consumer_key',
+    DiscogsConsumerSecret: 'your_consumer_secret',
+    callbackUrl: 'http://localhost:4567/callback',
+    userAgent: 'YourApp/1.0 +https://github.com/yourusername/your-app'
+});
+
+// Get authorization URL
+const authUrl = await sdk.auth.getAuthorizationUrl();
+console.log('Please visit:', authUrl);
+
+// After user authorizes, handle the callback with verifier
+await sdk.auth.handleCallback({
+    oauthVerifier: 'verifier_from_callback',
+    oauthToken: 'token_from_callback'
+});
+
+// Get user identity
+const identity = await sdk.auth.getUserIdentity();
+console.log('Logged in as:', identity.username);
+
+// Search for releases
+const searchResults = await sdk.search.getSearchResults({
+    query: 'Dark Side of the Moon',
+    type: 'release'
+});
+
+// Get user's collection
+const collection = await sdk.collection.getCollection({
+    username: identity.username,
+    page: 1,
+    perPage: 50
+});
+```
+
+## Custom Storage
+
+By default, the SDK uses in-memory storage. You can implement your own storage adapter:
+
+```typescript
+import { DiscogsSDK, StorageAdapter } from '@crate.ai/discogs-sdk';
+
+class CustomStorage implements StorageAdapter {
+    async getItem(key: string): Promise<string | null> {
+        // Your implementation
+    }
+    
+    async setItem(key: string, value: string): Promise<void> {
+        // Your implementation
+    }
+    
+    async removeItem(key: string): Promise<void> {
+        // Your implementation
+    }
+}
+
+const sdk = DiscogsSDK.withCustomStorage({
+    DiscogsConsumerKey: 'your_key',
+    DiscogsConsumerSecret: 'your_secret',
+    callbackUrl: 'your_callback',
+    userAgent: 'YourApp/1.0'
+}, new CustomStorage());
+```
+
+## API Reference
+
+### Authentication
+```typescript
+// Get authorization URL
+const authUrl = await sdk.auth.getAuthorizationUrl();
+
+// Handle OAuth callback
+await sdk.auth.handleCallback({
+    oauthVerifier: 'verifier',
+    oauthToken: 'token'
+});
+
+// Get user identity
+const identity = await sdk.auth.getUserIdentity();
+```
+
+### Collection
+```typescript
+// Get user's collection
+const collection = await sdk.collection.getCollection({
+    username: 'username',
+    page: 1,
+    perPage: 50
+});
+
+// Get collection folders
+const folders = await sdk.collection.getFolders('username');
+
+// Add release to collection
+await sdk.collection.addToCollection(releaseId, folderId);
+```
+
+### Search
+```typescript
+// Basic search
+const results = await sdk.search.getSearchResults({
+    query: 'Artist Name',
+    type: 'release'
+});
+
+// Advanced search
+const results = await sdk.search.getSearchResults({
+    query: 'Album Name',
+    type: 'release',
+    year: '1977',
+    format: 'album'
+});
+```
+
+## Examples
+
+For complete examples, check out our [example project](../example).
 
 ## Contributing
 
-We welcome contributions! Please see [CONTRIBUTING.md](./core/CONTRIBUTING.md) for details on how to contribute.
+Please see [CONTRIBUTING.md](./CONTRIBUTING.md) for contribution guidelines.
+
+## License
+
+MIT
