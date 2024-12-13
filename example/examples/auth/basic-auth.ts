@@ -1,4 +1,3 @@
-// example/src/examples/auth/basic-auth.ts
 import { DiscogsSDK } from '@crate.ai/discogs-sdk';
 import readline from 'readline';
 

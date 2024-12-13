@@ -1,4 +1,3 @@
-// tests/auth.test.ts
 import { describe, it, expect, beforeEach } from 'vitest';
 import { Auth } from '../src';
 import { MockHttpClient } from './__mocks__/mockHttpClient';

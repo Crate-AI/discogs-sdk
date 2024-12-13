@@ -1,4 +1,3 @@
-// tests/helpers/setup.ts
 import { Config, DiscogsSDK } from '../../src';
 import { MockStorageAdapter } from '../__mocks__/mockStorage';
 import { MockHttpClient } from '../__mocks__/mockHttpClient';

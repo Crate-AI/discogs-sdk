@@ -1,4 +1,3 @@
-// tests/__mocks__/mockHttpClient.ts
 import { HttpClient } from '../../src/interfaces/http';
 import { DiscogsError, ErrorCodes } from '../../src/utils/errors';
 

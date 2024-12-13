@@ -18,10 +18,6 @@ export async function collectionExample(sdk: DiscogsSDK) {
         const folders = await sdk.collection.getFolders(identity.username);
         console.log('Collection folders:', folders);
 
-        // Add a release to collection (commented out to prevent accidental additions)
-        // const addedRelease = await sdk.collection.addToCollection(123456, 1);
-        // console.log('Added release:', addedRelease);
-
     } catch (error) {
         console.error('Collection operations failed:', error);
         throw error;
