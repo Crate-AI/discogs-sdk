@@ -1,55 +1,57 @@
-// import fetch from 'isomorphic-unfetch';
-import { StorageService } from './utils';
-
-/**
- * Configuration type for the Base class.
- *
- * @typedef {Object} Config
- * @property {string} DiscogsConsumerKey - The Discogs consumer key.
- * @property {string} DiscogsConsumerSecret - The Discogs consumer secret.
- * @property {string} [baseUrl] - The base URL for the Discogs API. Defaults to 'https://api.discogs.com'.
- * @property {string} [callbackUrl] - The callback URL for the OAuth flow. Defaults to 'http://localhost:3000/callback'.
- * @property {string} [userAgent] - The User-Agent string for the SDK. Defaults to 'DefaultUserAgent/1.0'.
- */
+import { StorageAdapter } from './interfaces/storage';
+import { MemoryStorageAdapter } from './adapters/memoryStorage';
+import { TokenManager } from './interfaces/token';
+import { OAuthHandler } from './interfaces/oauth';
+import { HttpClient } from './interfaces/http';
+import { DefaultHttpClient } from './implementations/DefaultHttpClient';
+import { DefaultTokenManager } from './implementations/DefaultTokenManager';
+import { DefaultOAuthHandler } from './implementations/DefaultOAuthHandler';
 export type Config = {
     DiscogsConsumerKey: string;
     DiscogsConsumerSecret: string;
     baseUrl?: string;
     callbackUrl?: string;
     userAgent?: string;
+    storage: StorageAdapter;         // Required now, not optional
+    httpClient: HttpClient;          // Required now, not optional
+    oauthHandler: OAuthHandler;      // Required now, not optional
+    tokenManager: TokenManager;      // Required now, not optional
 };
 
-/**
- * Abstract Base class for the SDK.
- */
 export abstract class Base {
-    private DiscogsConsumerKey: string;
-    private DiscogsConsumerSecret: string;
-    private baseUrl: string;
-    private callbackUrl: string;
-    private userAgent: string;
-    private generateNonce(): string {
-        return Date.now().toString() + Math.random().toString().substring(2);
-    }
-     /**
-     * Constructor for the Base class.
-     *
-     * @param {Config} config - The configuration object.
-     */
+    protected readonly httpClient: HttpClient;
+    protected readonly storage: StorageAdapter;
+    protected readonly tokenManager: TokenManager;
+    protected readonly oauthHandler: OAuthHandler;
+    protected readonly consumerKey: string;
+    protected readonly consumerSecret: string;
+    protected readonly callbackUrl: string;
+    protected readonly userAgent: string;
+    protected readonly baseUrl: string;
+
     constructor(config: Config) {
-        this.DiscogsConsumerKey = config.DiscogsConsumerKey;
-        this.DiscogsConsumerSecret = config.DiscogsConsumerSecret;
+        // Initialize core configuration
+        this.consumerKey = config.DiscogsConsumerKey;
+        this.consumerSecret = config.DiscogsConsumerSecret;
         this.baseUrl = config.baseUrl || 'https://api.discogs.com';
-        this.callbackUrl = config.callbackUrl || 'http://localhost:3000/callback';
+        this.callbackUrl = config.callbackUrl || 'http://localhost:4567/callback';
         this.userAgent = config.userAgent || 'DefaultUserAgent/1.0';
+
+        // Dependencies must be injected
+        this.storage = config.storage;
+        this.httpClient = config.httpClient;
+        this.tokenManager = config.tokenManager;
+        this.oauthHandler = config.oauthHandler;
     }
 
-    protected get consumerKey(): string {
-        return this.DiscogsConsumerKey;
+
+    // Protected getters for core configuration
+    protected get consumerKeyGetter(): string {
+        return this.consumerKey;
     }
 
-    protected get consumerSecret(): string {
-        return this.DiscogsConsumerSecret;
+    protected get consumerSecretGetter(): string {
+        return this.consumerSecret;
     }
 
     protected get callbackUrlGetter(): string {
@@ -64,89 +66,115 @@ export abstract class Base {
         return this.userAgent;
     }
 
-    protected get nonceGetter(): string {
-        return this.generateNonce();
+    // Utility methods
+    protected generateNonce(): string {
+        return Date.now().toString() + Math.random().toString().substring(2);
     }
 
     protected generateTimestamp(): string {
-        return Date.now().toString();
-    }
-    
-    /**
-     * Method to generate the OAuth header.
-     * @param {string} [oauthToken] - Optional OAuth token for authorized requests.
-     * @param {string} [oauthTokenSecret] - Optional OAuth token secret for signature.
-     * @returns {string} - The generated OAuth header.
-     */
-    protected generateOAuthHeader(oauthToken?: string, oauthTokenSecret?: string): string {
-            const timestamp = this.generateTimestamp();
-            const nonce = this.nonceGetter;
-            let signature = `${this.DiscogsConsumerSecret}&`;
-            if (oauthTokenSecret) {
-                signature += oauthTokenSecret;
-            }
-    
-            let header = `OAuth oauth_consumer_key="${this.DiscogsConsumerKey}",oauth_signature_method="PLAINTEXT",oauth_timestamp="${timestamp}",oauth_nonce="${nonce}",oauth_version="1.0",oauth_signature="${signature}"`;
-            
-            if (oauthToken) {
-                header += `,oauth_token="${oauthToken}"`;
-            }
-    
-            return header;
+        return Math.floor(Date.now() / 1000).toString();
     }
 
     /**
-     * Method to make a request to the Discogs API.
-     *
-     * @param {string} endpoint - The API endpoint to request.
-     * @param {RequestInit} [options] - The request options.
-     * @param {any} [body] - The request body.
-     * @returns {Promise<T>} - A promise that resolves with the API response.
+     * Generates OAuth header for API requests
+     * @param {string} [oauthToken] - Optional OAuth token for authorized requests
+     * @param {string} [oauthTokenSecret] - Optional OAuth token secret for signature
+     * @returns {string} The generated OAuth header
+     */
+    protected generateOAuthHeader(oauthToken?: string, oauthTokenSecret?: string): string {
+        const timestamp = this.generateTimestamp();
+        const nonce = this.generateNonce();
+        let signature = `${this.consumerSecret}&`;
+        if (oauthTokenSecret) {
+            signature += oauthTokenSecret;
+        }
+
+        let header = `OAuth oauth_consumer_key="${this.consumerKey}",oauth_signature_method="PLAINTEXT",oauth_timestamp="${timestamp}",oauth_nonce="${nonce}",oauth_version="1.0",oauth_signature="${signature}"`;
+
+        if (oauthToken) {
+            header += `,oauth_token="${oauthToken}"`;
+        }
+
+        return header;
+    }
+
+    /**
+     * Makes a request to the Discogs API using the configured HttpClient
+     * @template T - The expected response type
+     * @param {string} endpoint - The API endpoint to request
+     * @param {RequestInit} [options] - The request options
+     * @param {any} [body] - The request body
+     * @returns {Promise<T>} A promise that resolves with the API response
      */
     protected async request<T>(endpoint: string, options?: RequestInit, body?: any): Promise<T> {
-        const url = `${this.baseUrl}${endpoint.startsWith('/') ? '' : '/'}${endpoint}`;  
+        const [oauthToken, oauthTokenSecret] = await Promise.all([
+            this.tokenManager.getAccessToken(),
+            this.tokenManager.getAccessTokenSecret()
+        ]);
+
         const headers = new Headers({
-            'Authorization': this.generateOAuthHeader(),
+            'Authorization': this.generateOAuthHeader(oauthToken, oauthTokenSecret),
             'User-Agent': this.userAgent
         });
-    
-        if (body && typeof body === 'string') {
-            headers.set('Content-Type', 'application/x-www-form-urlencoded');
-        } else if (body) {
-            headers.set('Content-Type', 'application/json');
-            body = JSON.stringify(body);
+
+        if (body) {
+            if (typeof body === 'string') {
+                headers.set('Content-Type', 'application/x-www-form-urlencoded');
+            } else {
+                headers.set('Content-Type', 'application/json');
+                body = JSON.stringify(body);
+            }
         }
-    
-        const config = {
-            headers: headers,
+
+        const requestOptions: RequestInit = {
             ...options,
-            body: body,
+            headers,
+            body,
             method: options?.method || 'GET'
         };
-    
-        const response = await fetch(url, config);
-        const responseText = await response.text();
-    
-        if (!response.ok) {
-            if (response.status === 401) {
-                console.log('Token invalid or Revoked. Refreshing token...');
-                throw new Error('Token invalid or Revoked. Refreshing token...');
-            }
-            throw new Error(`HTTP error ${response.status}: ${responseText}`);
-        }
-    
-        const contentType = response.headers.get('Content-Type') || '';
-        if (contentType.includes('application/json')) {
-            return JSON.parse(responseText) as T;
-        } else if (contentType.includes('application/x-www-form-urlencoded')) {
-            const params = new URLSearchParams(responseText);
-            const result: Record<string, string> = {};
-            params.forEach((value, key) => {
-                result[key] = value;
-            });
-            return result as unknown as T;
-        } else {
-            throw new Error(`Unsupported content type: ${contentType}`);
-        }
+
+        return this.httpClient.request<T>(endpoint, requestOptions, body);
+    }
+}
+
+export class BaseImplementation extends Base {
+    constructor(config: Config) {
+        super(config);
+    }
+
+    public getHttpClient(): HttpClient {
+        return this.httpClient;
+    }
+
+    public getTokenManager(): TokenManager {
+        return this.tokenManager;
+    }
+
+    public getOAuthHandler(): OAuthHandler {
+        return this.oauthHandler;
+    }
+
+    public getStorage(): StorageAdapter {
+        return this.storage;
+    }
+
+    public getUserAgent(): string {
+        return this.userAgent;
+    }
+
+    public generateOAuthHeaderPublic(oauthToken?: string, oauthTokenSecret?: string): string {
+        return this.generateOAuthHeader(oauthToken, oauthTokenSecret);
+    }
+
+    public async requestPublic<T>(endpoint: string, options?: RequestInit, body?: any): Promise<T> {
+        return this.request<T>(endpoint, options, body);
+    }
+
+    getConsumerKey(): string {
+        return this.consumerKey;
+    }
+
+    getConsumerSecret(): string {
+        return this.consumerSecret;
     }
 }

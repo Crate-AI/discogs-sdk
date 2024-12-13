@@ -1,59 +1,396 @@
-import { Base, Config } from "../base";
-import { StorageService } from "../utils";
-import type { CollectionResponse, CollectionParams } from "./types";
+import { BaseImplementation } from "../base";
+import { DiscogsError, ErrorCodes } from '../utils/errors';
+import type { 
+    CollectionResponse, 
+    CollectionParams,
+    FoldersResponse,
+    CollectionModificationResponse,
+    CollectionSortField,
+} from "./types";
 import type { UserIdentityResponse } from "../auth/types";
 
+export class Collection {
+    constructor(private readonly base: BaseImplementation) {}
 
-/**
- * Fetches collection items for a specific user from Discogs.
- * @param {string} username - The Discogs username.
- * @param {number} folderId - The specific folder ID in the collection; '0' for all items.
- * @param {number} page - Pagination page.
- * @param {number} perPage - Number of items per page.
- * @returns {Promise<any>} - The user's collection data.
- */
+    /**
+     * Get items from a collection folder
+     * @param params Collection parameters including username, folder ID, and pagination
+     * @throws {DiscogsError} If authentication fails or network error occurs
+     */
+    async getCollection(params: CollectionParams): Promise<CollectionResponse> {
+        try {
+            const tokenManager = this.base.getTokenManager();
+            const [oauthToken, oauthTokenSecret] = await Promise.all([
+                tokenManager.getAccessToken(),
+                tokenManager.getAccessTokenSecret()
+            ]);
 
-export class Collection extends Base {
+            if (!oauthToken || !oauthTokenSecret) {
+                throw new DiscogsError(
+                    'Authentication required to access collection',
+                    ErrorCodes.AUTHENTICATION_ERROR
+                );
+            }
 
-    constructor(config: Config) {
-        super(config);
+            // Get user identity
+            const storage = this.base.getStorage();
+            const userIdentityStr = await storage.getItem('userIdentity');
+            let userIdentity: UserIdentityResponse | null = null;
+            
+            if (userIdentityStr) {
+                try {
+                    userIdentity = JSON.parse(userIdentityStr) as UserIdentityResponse;
+                } catch (e) {
+                    console.warn('Failed to parse user identity from storage');
+                }
+            }
+
+            const {
+                folderId = 0,
+                page = 1,
+                perPage = 50,
+                username = userIdentity?.username,
+                sort,
+                sortOrder = 'asc',
+                format,
+                status,
+                yearRange
+            } = params;
+
+            if (!username) {
+                throw new DiscogsError(
+                    'Username is required to fetch collection',
+                    ErrorCodes.CONFIGURATION_ERROR
+                );
+            }
+
+            // Build query parameters
+            const queryParams = new URLSearchParams();
+            
+            // Pagination
+            queryParams.append('page', page.toString());
+            queryParams.append('per_page', perPage.toString());
+
+            // Sorting
+            if (sort) {
+                queryParams.append('sort', sort);
+                queryParams.append('sort_order', sortOrder);
+            }
+
+            // Format filtering
+            if (format) {
+                queryParams.append('format', format);
+            }
+
+            // Status filtering
+            if (status) {
+                queryParams.append('status', status);
+            }
+
+            // Year range filtering
+            if (yearRange) {
+                if (yearRange.from) {
+                    queryParams.append('year_from', yearRange.from.toString());
+                }
+                if (yearRange.to) {
+                    queryParams.append('year_to', yearRange.to.toString());
+                }
+            }
+
+            const authorizationHeader = this.base.generateOAuthHeaderPublic(
+                oauthToken,
+                oauthTokenSecret
+            );
+
+            const options = {
+                method: 'GET',
+                headers: {
+                    'Authorization': authorizationHeader,
+                    'User-Agent': this.base.getUserAgent()
+                }
+            };
+
+            const url = `users/${username}/collection/folders/${folderId}/releases?${queryParams.toString()}`;
+            
+            try {
+                return await this.base.requestPublic<CollectionResponse>(url, options);
+            } catch (error) {
+                if (error instanceof Error && error.message.includes('429')) {
+                    throw new DiscogsError(
+                        'Rate limit exceeded. Please try again later.',
+                        ErrorCodes.RATE_LIMIT_ERROR,
+                        error
+                    );
+                }
+                throw error;
+            }
+        } catch (error) {
+            throw this.handleError(error, 'Failed to fetch collection');
+        }
     }
 
-    async getCollection(params: CollectionParams): Promise<CollectionResponse> {
-        const oauthToken:string = StorageService.getItem('oauthAccessToken');
-        const oauthTokenSecret:string = StorageService.getItem('oauthAccessTokenSecret');
-        const userIdentity: UserIdentityResponse = StorageService.getItem('userIdentity');
-
-        const {
-            folderId = 0, // Default to 0 if folderId is undefined
-            page = 1, // Default to 1 if page is undefined
-            perPage = 50, // Default to 50 if perPage is undefined
-            username = userIdentity.username // Default to the username if username is undefined
-        } = params;
-
-        if(!userIdentity || !userIdentity.username) {
-            throw new Error("User identity is not available. Make sure the user is authenticated.");
-        }
-        const effectiveUsername = username ?? userIdentity.username;
-
-        const queryParams = new URLSearchParams({
-            'page': page.toString(),
-            'per_page': perPage.toString()
-        }).toString();
-    
-        const authorizationHeader = this.generateOAuthHeader(oauthToken, oauthTokenSecret);
-    
-        const options = {
-            method: 'GET',
-            headers: {
-                'Authorization': authorizationHeader,
-                'User-Agent': this.userAgentGetter
+    /**
+     * Helper method to get collection items within a specific year range
+     */
+    async getCollectionByYearRange(
+        startYear: number,
+        endYear: number,
+        baseParams: Omit<CollectionParams, 'yearRange'> = {}
+    ): Promise<CollectionResponse> {
+        return this.getCollection({
+            ...baseParams,
+            yearRange: {
+                from: startYear,
+                to: endYear
             }
-        };
+        });
+    }
 
-        const url = `users/${effectiveUsername}/collection/folders/${folderId}/releases?${queryParams}`;
-        
-        return this.request<CollectionResponse>(url, options);
+    /**
+     * Helper method to get collection items by format
+     */
+    async getCollectionByFormat(
+        format: string,
+        baseParams: Omit<CollectionParams, 'format'> = {}
+    ): Promise<CollectionResponse> {
+        return this.getCollection({
+            ...baseParams,
+            format
+        });
+    }
+
+    /**
+     * Helper method to get collection items sorted by a specific field
+     */
+    async getCollectionSorted(
+        sortField: CollectionSortField,
+        sortOrder: 'asc' | 'desc' = 'asc',
+        baseParams: Omit<CollectionParams, 'sort' | 'sortOrder'> = {}
+    ): Promise<CollectionResponse> {
+        return this.getCollection({
+            ...baseParams,
+            sort: sortField,
+            sortOrder
+        });
+    }
+   
+    /**
+     * Get user's collection folders
+     * @param username Optional username. If not provided, uses authenticated user's identity
+     * @throws {DiscogsError} If authentication fails or network error occurs
+     */
+    async getFolders(username?: string): Promise<FoldersResponse> {
+        try {
+            const tokenManager = this.base.getTokenManager();
+            const [oauthToken, oauthTokenSecret] = await Promise.all([
+                tokenManager.getAccessToken(),
+                tokenManager.getAccessTokenSecret()
+            ]);
+
+            if (!oauthToken || !oauthTokenSecret) {
+                throw new DiscogsError(
+                    'Authentication required to access folders',
+                    ErrorCodes.AUTHENTICATION_ERROR
+                );
+            }
+
+            // If username not provided, get from stored identity
+            if (!username) {
+                const storage = this.base.getStorage();
+                const userIdentityStr = await storage.getItem('userIdentity');
+                if (userIdentityStr) {
+                    const userIdentity = JSON.parse(userIdentityStr) as UserIdentityResponse;
+                    username = userIdentity.username;
+                }
+            }
+
+            if (!username) {
+                throw new DiscogsError(
+                    'Username is required to fetch folders',
+                    ErrorCodes.CONFIGURATION_ERROR
+                );
+            }
+
+            const authHeader = this.base.generateOAuthHeaderPublic(oauthToken, oauthTokenSecret);
+            const options = {
+                method: 'GET',
+                headers: {
+                    'Authorization': authHeader,
+                    'User-Agent': this.base.getUserAgent()
+                }
+            };
+
+            return await this.base.requestPublic<FoldersResponse>(
+                `users/${username}/collection/folders`,
+                options
+            );
+        } catch (error) {
+            throw this.handleError(error, 'Failed to fetch collection folders');
+        }
+    }
+
+    /**
+     * Add a release to a collection folder
+     * @param releaseId The ID of the release to add
+     * @param folderId The target folder ID
+     * @throws {DiscogsError} If authentication fails or network error occurs
+     */
+    async addToCollection(
+        releaseId: number,
+        folderId: number
+    ): Promise<CollectionModificationResponse> {
+        try {
+            const tokenManager = this.base.getTokenManager();
+            const [oauthToken, oauthTokenSecret] = await Promise.all([
+                tokenManager.getAccessToken(),
+                tokenManager.getAccessTokenSecret()
+            ]);
+
+            if (!oauthToken || !oauthTokenSecret) {
+                throw new DiscogsError(
+                    'Authentication required to modify collection',
+                    ErrorCodes.AUTHENTICATION_ERROR
+                );
+            }
+
+            const storage = this.base.getStorage();
+            const userIdentityStr = await storage.getItem('userIdentity');
+            if (!userIdentityStr) {
+                throw new DiscogsError(
+                    'User identity not found',
+                    ErrorCodes.AUTHENTICATION_ERROR
+                );
+            }
+
+            const userIdentity = JSON.parse(userIdentityStr) as UserIdentityResponse;
+            const authHeader = this.base.generateOAuthHeaderPublic(oauthToken, oauthTokenSecret);
+
+            const options = {
+                method: 'POST',
+                headers: {
+                    'Authorization': authHeader,
+                    'User-Agent': this.base.getUserAgent(),
+                    'Content-Length': '0'
+                }
+            };
+
+            return await this.base.requestPublic<CollectionModificationResponse>(
+                `users/${userIdentity.username}/collection/folders/${folderId}/releases/${releaseId}`,
+                options
+            );
+        } catch (error) {
+            throw this.handleError(error, 'Failed to add release to collection');
+        }
+    }
+
+    /**
+     * Remove a release from a collection folder
+     * @param releaseId The ID of the release to remove
+     * @param folderId The folder ID to remove from
+     * @throws {DiscogsError} If authentication fails or network error occurs
+     */
+    async removeFromCollection(
+        releaseId: number,
+        folderId: number
+    ): Promise<void> {
+        try {
+            const tokenManager = this.base.getTokenManager();
+            const [oauthToken, oauthTokenSecret] = await Promise.all([
+                tokenManager.getAccessToken(),
+                tokenManager.getAccessTokenSecret()
+            ]);
+
+            if (!oauthToken || !oauthTokenSecret) {
+                throw new DiscogsError(
+                    'Authentication required to modify collection',
+                    ErrorCodes.AUTHENTICATION_ERROR
+                );
+            }
+
+            const storage = this.base.getStorage();
+            const userIdentityStr = await storage.getItem('userIdentity');
+            if (!userIdentityStr) {
+                throw new DiscogsError(
+                    'User identity not found',
+                    ErrorCodes.AUTHENTICATION_ERROR
+                );
+            }
+
+            const userIdentity = JSON.parse(userIdentityStr) as UserIdentityResponse;
+            const authHeader = this.base.generateOAuthHeaderPublic(oauthToken, oauthTokenSecret);
+
+            const options = {
+                method: 'DELETE',
+                headers: {
+                    'Authorization': authHeader,
+                    'User-Agent': this.base.getUserAgent()
+                }
+            };
+
+            await this.base.requestPublic(
+                `users/${userIdentity.username}/collection/folders/${folderId}/releases/${releaseId}`,
+                options
+            );
+        } catch (error) {
+            throw this.handleError(error, 'Failed to remove release from collection');
+        }
+    }
+
+    /**
+     * Get the next page of collection items
+     * @param currentResponse The current collection response
+     * @param params The current collection parameters
+     * @returns Promise with the next page of items, or null if no next page
+     */
+    async getNextPage(
+        currentResponse: CollectionResponse,
+        params: CollectionParams
+    ): Promise<CollectionResponse | null> {
+        if (currentResponse.pagination.page >= currentResponse.pagination.pages) {
+            return null;
+        }
+
+        return this.getCollection({
+            ...params,
+            page: (params.page || 1) + 1
+        });
+    }
+
+    /**
+     * Get the previous page of collection items
+     * @param currentResponse The current collection response
+     * @param params The current collection parameters
+     * @returns Promise with the previous page of items, or null if no previous page
+     */
+    async getPreviousPage(
+        currentResponse: CollectionResponse,
+        params: CollectionParams
+    ): Promise<CollectionResponse | null> {
+        if (currentResponse.pagination.page <= 1) {
+            return null;
+        }
+
+        return this.getCollection({
+            ...params,
+            page: (params.page || 1) - 1
+        });
+    }
+
+    private handleError(error: unknown, context: string): never {
+        if (error instanceof DiscogsError) {
+            throw error;
+        }
+        if (error instanceof Error) {
+            throw new DiscogsError(
+                `${context}: ${error.message}`,
+                ErrorCodes.NETWORK_ERROR,
+                error
+            );
+        }
+        throw new DiscogsError(
+            `${context}: Unknown error occurred`,
+            ErrorCodes.UNKNOWN_ERROR,
+            error
+        );
     }
 }
-    

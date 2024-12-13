@@ -1,57 +1,38 @@
-import { DiscogsSDK, StorageService } from '@crate.ai/discogs-sdk';
-import path from 'path';
-import 'dotenv/config';
-import {
-  intro,
-  outro,
-  note,
-  confirm,
-  isCancel,
-  cancel,
-  spinner
-} from '@clack/prompts';
-import colors from 'picocolors';
+import { basicAuthExample } from '../examples/auth/basic-auth.ts';
+import { collectionExample } from '../examples/collection/collection-operations.ts';
+import { searchExample } from '../examples/search/search-operations.ts';
+import dotenv from 'dotenv';
 
-// Configure storage path to a directory where you have write permissions
-StorageService.storagePath = path.join(process.cwd(), 'storage.json');
+dotenv.config();
 
-const discogs = new DiscogsSDK({
-  DiscogsConsumerKey: process.env.CONSUMER_KEY || "",
-  DiscogsConsumerSecret: process.env.CONSUMER_SECRET || "",
-});
-
-(async () => {
-  try {
-    intro(colors.bgBlue('Discogs Authenticationzzz'));
-
-    const openBrowser = await confirm({
-      message: 'Would you like to open the authorization URL in your browser automatically?',
-    });
-
-    if (isCancel(openBrowser)) {
-      cancel('Operation cancelled');
-      return;
+function validateEnv() {
+    if (!process.env.CONSUMER_KEY) {
+        throw new Error('CONSUMER_KEY is required in .env file');
     }
+    if (!process.env.CONSUMER_SECRET) {
+        throw new Error('CONSUMER_SECRET is required in .env file');
+    }
+}
 
-    const authSpinner = spinner();
-    authSpinner.start('Waiting for authorization...');
+async function runExamples() {
+    try {
+        validateEnv();
 
-    await discogs.auth.authenticate();
+        console.log('Running Auth Example:');
+        const authenticatedSdk = await basicAuthExample();
 
-    authSpinner.stop('Authorization completed.');
+        if (authenticatedSdk) {
+            console.log('\nRunning Collection Example:');
+            await collectionExample(authenticatedSdk);
 
-    const identity = await discogs.auth.getUserIdentity({});
-    console.log(identity);
+            console.log('\nRunning Search Example:');
+            await searchExample(authenticatedSdk);
+        }
 
-    const results = await discogs.search.getSearchResults({
-      query: "rush",
-      country: "canada",
-    });
-    console.log(results);
+    } catch (error) {
+        console.error('Example failed:', error);
+        process.exit(1);
+    }
+}
 
-    outro('Authentication successful!');
-  } catch (error : any) {
-    note(`Error: ${error.message || error}`, 'Error');
-    cancel('Operation cancelled due to error.');
-  }
-})();
+runExamples().catch(console.error);
