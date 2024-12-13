@@ -1,4 +1,3 @@
-// factories/discogsFactory.ts
 import { Config, BaseImplementation } from '../base';
 import { StorageAdapter } from '../interfaces/storage';
 import { MemoryStorageAdapter } from '../adapters/memoryStorage';
@@ -27,7 +26,7 @@ export class DiscogsFactory {
             consumerSecret: config.DiscogsConsumerSecret,
             callbackUrl: config.callbackUrl || 'http://localhost:4567/callback',
             storage,
-            httpClient,  // Add httpClient to OAuthHandler config
+            httpClient,
             onStateChange: undefined
         });
 

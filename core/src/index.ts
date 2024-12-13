@@ -4,21 +4,21 @@ import { Collection } from './collection';
 import { Search } from './search';
 import { DiscogsFactory, DiscogsSDKConfig } from './factories/discogsFactory';
 import { StorageAdapter } from './interfaces/storage';
-// Export interfaces
+
 export * from './interfaces/http';
 export * from './interfaces/oauth';
 export * from './interfaces/storage';
 export * from './interfaces/token';
 
-// Export implementations
+
 export * from './implementations/DefaultHttpClient';
 export * from './implementations/DefaultTokenManager';
 export * from './implementations/DefaultOAuthHandler';
 
-// Export adapters
+
 export * from './adapters/memoryStorage';
 
-// Export core modules and types
+
 export { Auth } from './auth';
 export { Base, BaseImplementation, Config } from './base';
 export { Collection } from './collection';

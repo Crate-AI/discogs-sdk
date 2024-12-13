@@ -1,4 +1,3 @@
-// auth/index.ts
 import { BaseImplementation } from "../base";
 import { DiscogsError, ErrorCodes } from '../utils/errors';
 import { 
