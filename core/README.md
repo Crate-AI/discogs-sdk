@@ -149,7 +149,7 @@ const results = await sdk.search.getSearchResults({
 
 ## Examples
 
-For complete examples, check out our [example project](../example).
+For complete examples, check out our [example project](https://github.com/Crate-AI/discogs-sdk).
 
 ## Contributing
 
