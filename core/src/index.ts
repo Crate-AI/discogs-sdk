@@ -2,7 +2,8 @@ import { Auth } from './auth';
 import { Base, BaseImplementation, Config } from './base';
 import { Collection } from './collection';
 import { Search } from './search';
-
+import { DiscogsFactory, DiscogsSDKConfig } from './factories/discogsFactory';
+import { StorageAdapter } from './interfaces/storage';
 // Export interfaces
 export * from './interfaces/http';
 export * from './interfaces/oauth';
@@ -11,11 +12,10 @@ export * from './interfaces/token';
 
 // Export implementations
 export * from './implementations/DefaultHttpClient';
-export * from './implementations/DefaultTokenManger';
+export * from './implementations/DefaultTokenManager';
 export * from './implementations/DefaultOAuthHandler';
 
 // Export adapters
-export * from './adapters/fileSystemStorage';
 export * from './adapters/memoryStorage';
 
 // Export core modules and types
@@ -23,19 +23,30 @@ export { Auth } from './auth';
 export { Base, BaseImplementation, Config } from './base';
 export { Collection } from './collection';
 export { Search } from './search';
+export { DiscogsFactory, DiscogsSDKConfig } from './factories/discogsFactory';
 
-class DiscogsSDK {
+export class DiscogsSDK {
     private base: BaseImplementation;
     public auth: Auth;
     public collection: Collection;
     public search: Search;
 
-    constructor(config: Config) {
-        this.base = new BaseImplementation(config);
+    constructor(config: DiscogsSDKConfig) {
+        this.base = DiscogsFactory.createDefault(config);
         this.auth = new Auth(this.base);
         this.collection = new Collection(this.base);
         this.search = new Search(this.base);
     }
-}
 
-export { DiscogsSDK };
+    static withCustomStorage(config: DiscogsSDKConfig, storage: StorageAdapter): DiscogsSDK {
+        const sdk = new DiscogsSDK(config);
+        sdk.base = DiscogsFactory.createWithCustomStorage(config, storage);
+        return sdk;
+    }
+
+    static withCustomDependencies(config: Config): DiscogsSDK {
+        const sdk = new DiscogsSDK(config);
+        sdk.base = DiscogsFactory.createWithCustomDependencies(config);
+        return sdk;
+    }
+}

@@ -4,7 +4,7 @@ import { TokenManager } from './interfaces/token';
 import { OAuthHandler } from './interfaces/oauth';
 import { HttpClient } from './interfaces/http';
 import { DefaultHttpClient } from './implementations/DefaultHttpClient';
-import { DefaultTokenManager } from './implementations/DefaultTokenManger';
+import { DefaultTokenManager } from './implementations/DefaultTokenManager';
 import { DefaultOAuthHandler } from './implementations/DefaultOAuthHandler';
 export type Config = {
     DiscogsConsumerKey: string;
@@ -12,10 +12,10 @@ export type Config = {
     baseUrl?: string;
     callbackUrl?: string;
     userAgent?: string;
-    storage?: StorageAdapter;
-    httpClient?: HttpClient;
-    oauthHandler?: OAuthHandler;
-    tokenManager?: TokenManager;
+    storage: StorageAdapter;         // Required now, not optional
+    httpClient: HttpClient;          // Required now, not optional
+    oauthHandler: OAuthHandler;      // Required now, not optional
+    tokenManager: TokenManager;      // Required now, not optional
 };
 
 export abstract class Base {
@@ -37,29 +37,13 @@ export abstract class Base {
         this.callbackUrl = config.callbackUrl || 'http://localhost:4567/callback';
         this.userAgent = config.userAgent || 'DefaultUserAgent/1.0';
 
-        // Initialize dependencies with defaults if not provided
-        this.storage = config.storage || new MemoryStorageAdapter();
-        this.httpClient = config.httpClient || new DefaultHttpClient(
-            this.baseUrl,
-            this.userAgent
-        );
-        this.tokenManager = config.tokenManager || new DefaultTokenManager(this.storage);
-        this.oauthHandler = config.oauthHandler || new DefaultOAuthHandler(
-            this.consumerKey,
-            this.consumerSecret,
-            this.callbackUrl,
-            this.httpClient,
-            this.tokenManager
-        );
-        // is not shown in the provided code. You'll need to implement DefaultOAuthHandler
-        // this.oauthHandler = config.oauthHandler || new DefaultOAuthHandler(
-        //     this.consumerKey,
-        //     this.consumerSecret,
-        //     this.callbackUrl,
-        //     this.httpClient,
-        //     this.tokenManager
-        // );
+        // Dependencies must be injected
+        this.storage = config.storage;
+        this.httpClient = config.httpClient;
+        this.tokenManager = config.tokenManager;
+        this.oauthHandler = config.oauthHandler;
     }
+
 
     // Protected getters for core configuration
     protected get consumerKeyGetter(): string {
@@ -123,8 +107,11 @@ export abstract class Base {
      * @returns {Promise<T>} A promise that resolves with the API response
      */
     protected async request<T>(endpoint: string, options?: RequestInit, body?: any): Promise<T> {
-        const oauthToken = this.tokenManager.getAccessToken();
-        const oauthTokenSecret = this.tokenManager.getAccessTokenSecret();
+        const [oauthToken, oauthTokenSecret] = await Promise.all([
+            this.tokenManager.getAccessToken(),
+            this.tokenManager.getAccessTokenSecret()
+        ]);
+
         const headers = new Headers({
             'Authorization': this.generateOAuthHeader(oauthToken, oauthTokenSecret),
             'User-Agent': this.userAgent

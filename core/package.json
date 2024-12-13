@@ -1,6 +1,6 @@
 {
   "name": "@crate.ai/discogs-sdk",
-  "version": "2.0.2",
+  "version": "2.1.0",
   "description": "an SDK for the Discogs API",
   "repository": {
     "type": "git",
@@ -20,6 +20,8 @@
   "module": "dist/index.mjs",
   "types": "dist/index.d.ts",
   "scripts": {
+    "test": "vitest",
+    "test:coverage": "vitest run --coverage",
     "build": "tsup",
     "clean": "rm -rf dist && tsup",
     "dev": "tsup --watch",
@@ -42,6 +44,8 @@
     "@changesets/cli": "^2.27.1",
     "@types/node": "^18.19.33",
     "tsup": "^8.0.2",
-    "typescript": "^4.4.4"
+    "typescript": "^4.4.4",
+    "vitest": "^1.0.0",
+    "@vitest/coverage-v8": "^1.0.0"
   }
 }

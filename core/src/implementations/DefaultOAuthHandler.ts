@@ -1,17 +1,26 @@
-import { OAuthHandler, OAuthCallbackParams } from '../interfaces/oauth';
+import { 
+    OAuthHandler, 
+    OAuthCallbackParams, 
+    OAuthConfig, 
+    OAuthState,
+    OAuthTokenPair 
+} from '../interfaces/oauth';
+import { DiscogsError, ErrorCodes } from '../utils/errors';
 import { HttpClient } from '../interfaces/http';
-import { TokenManager } from '../interfaces/token';
 
 export class DefaultOAuthHandler implements OAuthHandler {
     private readonly AUTH_BASE_URL = 'https://www.discogs.com/oauth';
+    private currentState: OAuthState = { status: 'initial' };
+    private readonly httpClient: HttpClient;
 
-    constructor(
-        private readonly consumerKey: string,
-        private readonly consumerSecret: string,
-        private readonly callbackUrl: string,
-        private readonly httpClient: HttpClient,
-        private readonly tokenManager: TokenManager
-    ) {}
+    constructor(private readonly config: OAuthConfig) {
+        this.httpClient = config.httpClient;
+    }
+
+    private setState(newState: OAuthState): void {
+        this.currentState = newState;
+        this.config.onStateChange?.(newState);
+    }
 
     private generateNonce(): string {
         return `${Date.now()}${Math.random().toString().substring(2)}`;
@@ -21,21 +30,23 @@ export class DefaultOAuthHandler implements OAuthHandler {
         return Math.floor(Date.now() / 1000).toString();
     }
 
-    async getAuthorizationUrl(): Promise<string> {
-        const timestamp = this.generateTimestamp();
-        const nonce = this.generateNonce();
-        const signature = `${this.consumerSecret}&`;
-
-        const authHeader = `OAuth oauth_consumer_key="${this.consumerKey}",` +
-            `oauth_nonce="${nonce}",` +
-            `oauth_callback="${encodeURIComponent(this.callbackUrl)}",` +
-            `oauth_signature="${encodeURIComponent(signature)}",` +
-            `oauth_signature_method="PLAINTEXT",` +
-            `oauth_timestamp="${timestamp}",` +
-            `oauth_version="1.0"`;
+    async getAuthorizationUrl(): Promise<{ url: string; requestTokens: OAuthTokenPair }> {
+        this.setState({ status: 'requesting_token' });
 
         try {
-            const response = await this.httpClient.request<Record<string, string>>('oauth/request_token', {
+            const timestamp = this.generateTimestamp();
+            const nonce = this.generateNonce();
+            const signature = `${this.config.consumerSecret}&`;
+
+            const authHeader = `OAuth oauth_consumer_key="${this.config.consumerKey}",` +
+                `oauth_nonce="${nonce}",` +
+                `oauth_callback="${encodeURIComponent(this.config.callbackUrl)}",` +
+                `oauth_signature="${encodeURIComponent(signature)}",` +
+                `oauth_signature_method="PLAINTEXT",` +
+                `oauth_timestamp="${timestamp}",` +
+                `oauth_version="1.0"`;
+
+            const response = await this.httpClient.request<string>('oauth/request_token', {
                 method: 'POST',
                 headers: {
                     'Authorization': authHeader,
@@ -43,74 +54,99 @@ export class DefaultOAuthHandler implements OAuthHandler {
                 }
             });
 
-            const { oauth_token: oauthToken, oauth_token_secret: oauthTokenSecret } = response;
+            const params = new URLSearchParams(response);
+            const requestToken = params.get('oauth_token');
+            const requestTokenSecret = params.get('oauth_token_secret');
 
-            if (!oauthToken || !oauthTokenSecret) {
-                throw new Error('Invalid response: Missing oauth tokens');
+            if (!requestToken || !requestTokenSecret) {
+                throw new DiscogsError(
+                    'Invalid response: Missing oauth tokens',
+                    ErrorCodes.INVALID_TOKEN
+                );
             }
 
-            this.tokenManager.setRequestToken(oauthToken);
-            this.tokenManager.setRequestTokenSecret(oauthTokenSecret);
+            await this.config.storage.setItem('requestToken', requestToken);
+            await this.config.storage.setItem('requestTokenSecret', requestTokenSecret);
 
-            return `${this.AUTH_BASE_URL}/authorize?oauth_token=${oauthToken}`;
+            this.setState({ status: 'awaiting_user' });
+
+            return {
+                url: `${this.AUTH_BASE_URL}/authorize?oauth_token=${requestToken}`,
+                requestTokens: {
+                    token: requestToken,
+                    secret: requestTokenSecret
+                }
+            };
         } catch (error) {
-            throw new Error(`Failed to obtain request token: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            this.setState({ 
+                status: 'initial', 
+                error: error instanceof Error ? error.message : 'Unknown error' 
+            });
+            throw error;
         }
     }
 
-    async handleCallback(params: OAuthCallbackParams): Promise<{
-        oauthAccessToken: string;
-        oauthAccessTokenSecret: string;
-    }> {
-        const { oauthVerifier } = params;
-        const requestToken = this.tokenManager.getRequestToken();
-        const requestTokenSecret = this.tokenManager.getRequestTokenSecret();
-
-        if (!requestToken || !requestTokenSecret) {
-            throw new Error('Missing request tokens. Authorization process must be initiated first.');
-        }
-
-        const body = new URLSearchParams({
-            'oauth_token': requestToken,
-            'oauth_verifier': oauthVerifier
-        }).toString();
-
-        const signature = `${this.consumerSecret}&${requestTokenSecret}`;
-        const timestamp = this.generateTimestamp();
-        const nonce = this.generateNonce();
-
-        const authHeader = `OAuth oauth_consumer_key="${this.consumerKey}",` +
-            `oauth_nonce="${nonce}",` +
-            `oauth_signature="${signature}",` +
-            `oauth_signature_method="PLAINTEXT",` +
-            `oauth_timestamp="${timestamp}",` +
-            `oauth_token="${requestToken}",` +
-            `oauth_version="1.0"`;
-
+    async handleCallback(params: OAuthCallbackParams): Promise<OAuthTokenPair> {
+        this.setState({ status: 'completing' });
+    
         try {
-            const response = await this.httpClient.request<Record<string, string>>('oauth/access_token', {
+            const requestToken = await this.config.storage.getItem('requestToken');
+            const requestTokenSecret = await this.config.storage.getItem('requestTokenSecret');
+    
+            if (!requestToken || !requestTokenSecret) {
+                throw new DiscogsError(
+                    'Missing request tokens',
+                    ErrorCodes.INVALID_TOKEN
+                );
+            }
+    
+            const signature = `${this.config.consumerSecret}&${requestTokenSecret}`;
+            const timestamp = this.generateTimestamp();
+            const nonce = this.generateNonce();
+    
+            const authHeader = `OAuth oauth_consumer_key="${this.config.consumerKey}",` +
+                `oauth_nonce="${nonce}",` +
+                `oauth_token="${requestToken}",` +
+                `oauth_verifier="${params.oauthVerifier}",` +
+                `oauth_signature="${encodeURIComponent(signature)}",` +
+                `oauth_signature_method="PLAINTEXT",` +
+                `oauth_timestamp="${timestamp}",` +
+                `oauth_version="1.0"`;
+
+            const response = await this.httpClient.request<string>('oauth/access_token', {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                    'Authorization': authHeader
+                    'Authorization': authHeader,
+                    'Content-Type': 'application/x-www-form-urlencoded'
                 }
-            }, body);
+            });
 
-            const { oauth_token: accessToken, oauth_token_secret: accessTokenSecret } = response;
-
+            const responseParams = new URLSearchParams(response);
+            const accessToken = responseParams.get('oauth_token');
+            const accessTokenSecret = responseParams.get('oauth_token_secret');
+    
             if (!accessToken || !accessTokenSecret) {
-                throw new Error('Invalid response: Missing access tokens');
+                throw new DiscogsError(
+                    'Invalid response: Missing access tokens',
+                    ErrorCodes.INVALID_TOKEN
+                );
             }
-
-            this.tokenManager.setAccessToken(accessToken);
-            this.tokenManager.setAccessTokenSecret(accessTokenSecret);
-
+    
+            await this.config.storage.setItem('accessToken', accessToken);
+            await this.config.storage.setItem('accessTokenSecret', accessTokenSecret);
+    
+            this.setState({ status: 'authenticated' });
+    
             return {
-                oauthAccessToken: accessToken,
-                oauthAccessTokenSecret: accessTokenSecret
+                token: accessToken,
+                secret: accessTokenSecret
             };
         } catch (error) {
-            throw new Error(`Failed to obtain access token: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            this.setState({ 
+                status: 'initial', 
+                error: error instanceof Error ? error.message : 'Unknown error' 
+            });
+            throw error;
         }
     }
 }

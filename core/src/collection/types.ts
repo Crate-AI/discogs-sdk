@@ -66,11 +66,46 @@ export declare type Note = {
     field_id: number;
     value: string;
 };
+export type CollectionSortField = 'label' | 'artist' | 'title' | 'catno' | 'format' | 'rating' | 'added' | 'year';
 
-export declare type CollectionParams = {
+export const CollectionSortFields = {
+    LABEL: 'label' as const,
+    ARTIST: 'artist' as const,
+    TITLE: 'title' as const,
+    CATALOG_NUMBER: 'catno' as const,
+    FORMAT: 'format' as const,
+    RATING: 'rating' as const,
+    ADDED: 'added' as const,
+    YEAR: 'year' as const
+} as const;
+
+export interface CollectionParams {
     username?: string;
     folderId?: number | 0;
     page?: number;
     perPage?: number;
-};
+    sort?: CollectionSortField;
+    sortOrder?: 'asc' | 'desc';
+    format?: string;
+    status?: 'All' | 'Available' | 'For Trade' | 'Not For Sale';
+    yearRange?: {
+        from?: number;
+        to?: number;
+    };
+}
 
+export interface FoldersResponse {
+    folders: Folder[];
+}
+
+export interface Folder {
+    id: number;
+    name: string;
+    count: number;
+    resource_url: string;
+}
+
+export interface CollectionModificationResponse {
+    instance_id: number;
+    resource_url: string;
+}

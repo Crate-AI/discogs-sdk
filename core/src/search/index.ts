@@ -11,8 +11,8 @@ export class Search {
      */
     async getSearchResults(params: SearchParams): Promise<SearchResult[]> {
         const tokenManager = this.base.getTokenManager();
-        const accessToken = tokenManager.getAccessToken();
-        const tokenSecret = tokenManager.getRequestTokenSecret();
+        const accessToken = await tokenManager.getAccessToken();
+        const tokenSecret = await tokenManager.getRequestTokenSecret();
 
         if (!accessToken || !tokenSecret) {
             throw new Error("Authentication required. Please authenticate first.");
