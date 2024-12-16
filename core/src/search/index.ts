@@ -11,27 +11,27 @@ export class Search {
      */
     async getSearchResults(params: SearchParams): Promise<SearchResult[]> {
         const tokenManager = this.base.getTokenManager();
+        let headers: Record<string, string> = {
+            "User-Agent": this.base.getUserAgent(),
+        };
+
         const accessToken = await tokenManager.getAccessToken();
         const tokenSecret = await tokenManager.getRequestTokenSecret();
 
-        if (!accessToken || !tokenSecret) {
-            throw new Error("Authentication required. Please authenticate first.");
+        if (accessToken && tokenSecret) {
+            const authorizationHeader = this.base.generateOAuthHeaderPublic(
+                accessToken,
+                tokenSecret
+            );
+            headers.Authorization = authorizationHeader;
+        } else {
+            console.warn('No authentication provided. Rate limits will be restricted to 25 requests/minute.');
         }
 
         const { query, ...otherParams } = params;
         const queryParams = new URLSearchParams(
             otherParams as Record<string, string>
         ).toString();
-
-        const authorizationHeader = this.base.generateOAuthHeaderPublic(
-            accessToken,
-            tokenSecret
-        );
-
-        const headers = {
-            Authorization: authorizationHeader,
-            "User-Agent": this.base.getUserAgent(),
-        };
 
         const url = `/database/search?q=${encodeURIComponent(query)}&${queryParams}`;
 
