@@ -32,7 +32,6 @@ export async function basicAuthExample() {
                 resolve(answer.trim());
             });
         });
-
         // Complete authentication with the verifier
         await sdk.auth.handleCallback({
             oauthVerifier: verifier,

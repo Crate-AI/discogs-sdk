@@ -2,14 +2,12 @@ import { DiscogsSDK } from '@crate.ai/discogs-sdk';
 
 export async function searchExample(sdk: DiscogsSDK) {
     try {
-        // Basic search
         const basicResults = await sdk.search.getSearchResults({
             query: 'Dark Side of the Moon',
             type: 'release'
         });
         console.log('Basic search results:', basicResults);
 
-        // Advanced search with multiple parameters
         const advancedResults = await sdk.search.getSearchResults({
             query: 'Miles Davis',
             type: 'release',
