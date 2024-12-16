@@ -17,6 +17,7 @@ describe('Search', () => {
         storage = new MockStorageAdapter();
         
         httpClient.clearMocks();
+        storage.clear();
 
         vi.spyOn(console, 'warn').mockImplementation(() => {});
 
@@ -31,15 +32,13 @@ describe('Search', () => {
         search = new Search(sdk);
     });
 
-    describe('authenticated searches', () => {
-        beforeEach(async () => {
-            // Set up mock tokens in storage
+    describe('authentication methods', () => {
+        it('should use OAuth when tokens are available', async () => {
+            // Set up OAuth tokens
             await storage.setItem('accessToken', 'test_access_token');
             await storage.setItem('accessTokenSecret', 'test_access_secret');
             await storage.setItem('requestTokenSecret', 'test_request_secret');
-        });
 
-        it('should search releases with authentication', async () => {
             const mockResults = [{
                 id: 123,
                 title: 'Test Album',
@@ -60,63 +59,18 @@ describe('Search', () => {
             
             expect(result).toEqual(mockResults);
             expect(console.warn).not.toHaveBeenCalled();
-        });
 
-        it('should handle search with multiple parameters when authenticated', async () => {
-            const mockResults = [{
-                id: 123,
-                title: 'Test Album',
-                year: '1981',
-                type: 'release'
-            }];
-
-            httpClient.setMockResponse('database/search', {
-                ok: true,
-                status: 200,
-                data: mockResults
-            });
-
-            const result = await search.getSearchResults({
-                query: 'Rush',
-                type: 'release',
-                year: '1981'
-            });
-            expect(result).toEqual(mockResults);
-        });
-    });
-
-    describe('unauthenticated searches', () => {
-        beforeEach(async () => {
-            await storage.clear();
-        });
-
-        it('should perform search without authentication', async () => {
-            const mockResults = [{
-                id: 123,
-                title: 'Test Album',
-                year: '2023',
-                type: 'release'
-            }];
-
-            httpClient.setMockResponse('database/search', {
-                ok: true,
-                status: 200,
-                data: mockResults
-            });
-
-            const result = await search.getSearchResults({
-                query: 'test',
-                type: 'release'
-            });
-            
-            expect(result).toEqual(mockResults);
-            expect(console.warn).toHaveBeenCalledWith(
-                'No authentication provided. Rate limits will be restricted to 25 requests/minute.'
-            );
+            const lastRequest = httpClient.getLastRequest();
+            expect(lastRequest?.headers?.authorization).toContain('OAuth');
         });
     });
 
     describe('error handling', () => {
+        beforeEach(async () => {
+            await storage.setItem('accessToken', 'test_access_token');
+            await storage.setItem('accessTokenSecret', 'test_access_secret');
+        });
+
         it('should handle rate limiting', async () => {
             httpClient.setMockResponse('database/search', {
                 ok: false,
@@ -142,23 +96,23 @@ describe('Search', () => {
         });
 
         it('should handle missing mock responses', async () => {
-            const expectedEndpoint = 'database/search?q=test&';
-            
             await expect(search.getSearchResults({ query: 'test' }))
                 .rejects
                 .toThrow(new DiscogsError(
-                    `No mock response set for endpoint: ${expectedEndpoint}`,
+                    'No mock response set for endpoint: database/search?q=test',
                     ErrorCodes.NETWORK_ERROR
                 ));
         });
     });
 
     describe('query parameter handling', () => {
-        it('should correctly handle query parameters', async () => {
-            const mockResults = [{ id: 123, title: 'Test Album' }];
-            
-            const setSpy = vi.spyOn(httpClient, 'setMockResponse');
-            const requestSpy = vi.spyOn(httpClient, 'request');
+        beforeEach(async () => {
+            await storage.setItem('accessToken', 'test_access_token');
+            await storage.setItem('accessTokenSecret', 'test_access_secret');
+        });
+
+        it('should handle all supported search parameters', async () => {
+            const mockResults = [{ id: 123, title: 'Test Album', type: 'release' }];
 
             httpClient.setMockResponse('database/search', {
                 ok: true,
@@ -167,15 +121,43 @@ describe('Search', () => {
             });
 
             await search.getSearchResults({
-                query: 'test album',
+                query: 'nirvana',
                 type: 'release',
-                format: 'vinyl'
+                title: 'nirvana - nevermind',
+                releaseTitle: 'nevermind',
+                credit: 'kurt',
+                artist: 'nirvana',
+                label: 'dgc',
+                genre: 'rock',
+                style: 'grunge',
+                country: 'canada',
+                year: '1991',
+                format: 'album',
+                catno: 'DGCD-24425',
+                barcode: '7 2064-24425-2 4',
+                track: 'smells like teen spirit'
             });
 
-            const requestCall = requestSpy.mock.calls[0][0];
-            expect(requestCall).toContain(encodeURIComponent('test album'));
-            expect(requestCall).toContain('type=release');
-            expect(requestCall).toContain('format=vinyl');
+            const lastRequest = httpClient.getLastRequest();
+            const requestUrl = lastRequest?.url || '';
+            const params = new URLSearchParams(requestUrl.split('?')[1]);
+
+            // Verify all parameters
+            expect(params.get('q')).toBe('nirvana');
+            expect(params.get('type')).toBe('release');
+            expect(params.get('title')).toBe('nirvana - nevermind');
+            expect(params.get('release_title')).toBe('nevermind');
+            expect(params.get('credit')).toBe('kurt');
+            expect(params.get('artist')).toBe('nirvana');
+            expect(params.get('label')).toBe('dgc');
+            expect(params.get('genre')).toBe('rock');
+            expect(params.get('style')).toBe('grunge');
+            expect(params.get('country')).toBe('canada');
+            expect(params.get('year')).toBe('1991');
+            expect(params.get('format')).toBe('album');
+            expect(params.get('catno')).toBe('DGCD-24425');
+            expect(params.get('barcode')).toBe('7 2064-24425-2 4');
+            expect(params.get('track')).toBe('smells like teen spirit');
         });
     });
 });

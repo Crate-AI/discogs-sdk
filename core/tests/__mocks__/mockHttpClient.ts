@@ -9,21 +9,53 @@ interface MockResponse {
 
 export class MockHttpClient implements HttpClient {
     private mockResponses = new Map<string, MockResponse>();
+    private lastRequest: {
+        url: string;
+        method?: string;
+        headers: Record<string, string>;
+    } | null = null;
 
-    public setMockResponse(endpoint: string, mock: MockResponse): void {
-        // Normalize the endpoint by removing leading slash if present
-        const normalizedEndpoint = endpoint.startsWith('/') ? endpoint.slice(1) : endpoint;
-        this.mockResponses.set(normalizedEndpoint, mock);
+    private normalizeHeaders(headers: HeadersInit | undefined): Record<string, string> {
+        const normalized: Record<string, string> = {};
+        
+        if (!headers) {
+            return normalized;
+        }
+
+        if (headers instanceof Headers) {
+            headers.forEach((value, key) => {
+                normalized[key.toLowerCase()] = value;
+            });
+            return normalized;
+        }
+
+        if (Array.isArray(headers)) {
+            headers.forEach(([key, value]) => {
+                normalized[key.toLowerCase()] = value;
+            });
+            return normalized;
+        }
+
+        // Handle plain object
+        Object.entries(headers).forEach(([key, value]) => {
+            if (typeof value === 'string') {
+                normalized[key.toLowerCase()] = value;
+            }
+        });
+
+        return normalized;
     }
 
-    public async request<T>(endpoint: string, options?: RequestInit): Promise<T> {
-        // Normalize the endpoint by removing leading slash if present
+    public async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
         const normalizedEndpoint = endpoint.startsWith('/') ? endpoint.slice(1) : endpoint;
         
-        // Try exact match first
+        this.lastRequest = {
+            url: normalizedEndpoint,
+            method: options.method,
+            headers: this.normalizeHeaders(options.headers)
+        };
+
         let response = this.mockResponses.get(normalizedEndpoint);
-        
-        // If no exact match, try matching the base endpoint without query params
         if (!response) {
             const [baseEndpoint] = normalizedEndpoint.split('?');
             response = this.mockResponses.get(baseEndpoint);
@@ -46,11 +78,20 @@ export class MockHttpClient implements HttpClient {
         return response.data as T;
     }
 
-    public clearMocks(): void {
-        this.mockResponses.clear();
+    public getLastRequest() {
+        return this.lastRequest ? {
+            ...this.lastRequest,
+            headers: { ...this.lastRequest.headers }
+        } : null;
     }
 
-    public getMocks(): Map<string, MockResponse> {
-        return this.mockResponses;
+    public clearMocks(): void {
+        this.mockResponses.clear();
+        this.lastRequest = null;
+    }
+
+    public setMockResponse(endpoint: string, mock: MockResponse): void {
+        const normalizedEndpoint = endpoint.startsWith('/') ? endpoint.slice(1) : endpoint;
+        this.mockResponses.set(normalizedEndpoint, mock);
     }
 }

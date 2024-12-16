@@ -158,3 +158,42 @@ Please see [CONTRIBUTING.md](./CONTRIBUTING.md) for contribution guidelines.
 ## License
 
 MIT
+
+## Authentication Flow
+
+The SDK uses OAuth 1.0a for authentication. Here's a complete example:
+
+```typescript
+import { DiscogsSDK } from '@crate.ai/discogs-sdk';
+
+const sdk = new DiscogsSDK({
+    DiscogsConsumerKey: 'your_key',
+    DiscogsConsumerSecret: 'your_secret',
+    callbackUrl: 'http://localhost:4567/callback',
+    userAgent: 'YourApp/1.0'
+});
+
+// 1. Get authorization URL
+const authUrl = await sdk.auth.getAuthorizationUrl();
+console.log('Visit:', authUrl);
+
+// 2. Extract oauth_token from the URL
+const oauthToken = new URL(authUrl).searchParams.get('oauth_token');
+
+// 3. After user authorizes, they'll be redirected to your callback URL with:
+// http://localhost:4567/callback?oauth_token=TOKEN&oauth_verifier=VERIFIER
+
+// 4. Complete authentication with the verifier and token
+await sdk.auth.handleCallback({
+    oauthVerifier: 'verifier_from_callback_url',
+    oauthToken: oauthToken
+});
+
+// 5. Get user identity
+const identity = await sdk.auth.getUserIdentity();
+console.log('Logged in as:', identity.username);
+```
+
+The callback URL will receive two parameters:
+- `oauth_token`: Matches the token from step 2
+- `oauth_verifier`: The verification code needed to complete authentication
