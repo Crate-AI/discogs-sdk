@@ -2,4 +2,4 @@
 '@crate.ai/discogs-sdk': minor
 ---
 
-refactor
+user endpiont

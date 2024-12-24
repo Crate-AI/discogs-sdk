@@ -34,10 +34,10 @@ yarn add @crate.ai/discogs-sdk
 import { DiscogsSDK } from '@crate.ai/discogs-sdk';
 
 const sdk = new DiscogsSDK({
-    DiscogsConsumerKey: 'your_consumer_key',
-    DiscogsConsumerSecret: 'your_consumer_secret',
-    callbackUrl: 'http://localhost:4567/callback',
-    userAgent: 'YourApp/1.0 +https://github.com/yourusername/your-app'
+  DiscogsConsumerKey: 'your_consumer_key',
+  DiscogsConsumerSecret: 'your_consumer_secret',
+  callbackUrl: 'http://localhost:4567/callback',
+  userAgent: 'YourApp/1.0 +https://github.com/yourusername/your-app',
 });
 
 // Get authorization URL
@@ -46,8 +46,8 @@ console.log('Please visit:', authUrl);
 
 // After user authorizes, handle the callback with verifier
 await sdk.auth.handleCallback({
-    oauthVerifier: 'verifier_from_callback',
-    oauthToken: 'token_from_callback'
+  oauthVerifier: 'verifier_from_callback',
+  oauthToken: 'token_from_callback',
 });
 
 // Get user identity
@@ -56,15 +56,15 @@ console.log('Logged in as:', identity.username);
 
 // Search for releases
 const searchResults = await sdk.search.getSearchResults({
-    query: 'Dark Side of the Moon',
-    type: 'release'
+  query: 'Dark Side of the Moon',
+  type: 'release',
 });
 
 // Get user's collection
 const collection = await sdk.collection.getCollection({
-    username: identity.username,
-    page: 1,
-    perPage: 50
+  username: identity.username,
+  page: 1,
+  perPage: 50,
 });
 ```
 
@@ -76,38 +76,42 @@ By default, the SDK uses in-memory storage. You can implement your own storage a
 import { DiscogsSDK, StorageAdapter } from '@crate.ai/discogs-sdk';
 
 class CustomStorage implements StorageAdapter {
-    async getItem(key: string): Promise<string | null> {
-        // Your implementation
-    }
-    
-    async setItem(key: string, value: string): Promise<void> {
-        // Your implementation
-    }
-    
-    async removeItem(key: string): Promise<void> {
-        // Your implementation
-    }
+  async getItem(key: string): Promise<string | null> {
+    // Your implementation
+  }
+
+  async setItem(key: string, value: string): Promise<void> {
+    // Your implementation
+  }
+
+  async removeItem(key: string): Promise<void> {
+    // Your implementation
+  }
 }
 
-const sdk = DiscogsSDK.withCustomStorage({
+const sdk = DiscogsSDK.withCustomStorage(
+  {
     DiscogsConsumerKey: 'your_key',
     DiscogsConsumerSecret: 'your_secret',
     callbackUrl: 'your_callback',
-    userAgent: 'YourApp/1.0'
-}, new CustomStorage());
+    userAgent: 'YourApp/1.0',
+  },
+  new CustomStorage(),
+);
 ```
 
 ## API Reference
 
 ### Authentication
+
 ```typescript
 // Get authorization URL
 const authUrl = await sdk.auth.getAuthorizationUrl();
 
 // Handle OAuth callback
 await sdk.auth.handleCallback({
-    oauthVerifier: 'verifier',
-    oauthToken: 'token'
+  oauthVerifier: 'verifier',
+  oauthToken: 'token',
 });
 
 // Get user identity
@@ -115,12 +119,13 @@ const identity = await sdk.auth.getUserIdentity();
 ```
 
 ### Collection
+
 ```typescript
 // Get user's collection
 const collection = await sdk.collection.getCollection({
-    username: 'username',
-    page: 1,
-    perPage: 50
+  username: 'username',
+  page: 1,
+  perPage: 50,
 });
 
 // Get collection folders
@@ -131,19 +136,20 @@ await sdk.collection.addToCollection(releaseId, folderId);
 ```
 
 ### Search
+
 ```typescript
 // Basic search
 const results = await sdk.search.getSearchResults({
-    query: 'Artist Name',
-    type: 'release'
+  query: 'Artist Name',
+  type: 'release',
 });
 
 // Advanced search
 const results = await sdk.search.getSearchResults({
-    query: 'Album Name',
-    type: 'release',
-    year: '1977',
-    format: 'album'
+  query: 'Album Name',
+  type: 'release',
+  year: '1977',
+  format: 'album',
 });
 ```
 
