@@ -1,5 +1,5 @@
 ---
-"@crate.ai/discogs-sdk": minor
+'@crate.ai/discogs-sdk': minor
 ---
 
 Search Endpoint

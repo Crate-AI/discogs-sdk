@@ -1,5 +1,5 @@
 ---
-"@crate.ai/discogs-sdk": patch
+'@crate.ai/discogs-sdk': patch
 ---
 
 update readme
